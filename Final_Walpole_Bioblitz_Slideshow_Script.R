@@ -1,6 +1,6 @@
 
 # ==============================================================================
-# Walpole Wilderness Bioblitz 2025 - Slideshow Generator - 
+# iNaturalist Bioblitz Slideshow Generator
 # ==============================================================================
 
 cat("=== SCRIPT STARTING ===\n\n")
@@ -8,9 +8,19 @@ cat("=== SCRIPT STARTING ===\n\n")
 # ==============================================================================
 # CONFIGURATION - EDIT THESE SETTINGS
 # ==============================================================================
+# 
+# To use this script for a different bioblitz, update the following:
+# 1. project_slug - your iNaturalist project URL slug
+# 2. bioblitz_name - the name that will appear on slides
+# 3. bioblitz_year - the year of your bioblitz
+# 4. bioblitz_logo - your logo filename (optional)
+# 5. hq_lon, hq_lat - coordinates for your bioblitz headquarters
+# ==============================================================================
 
 # --- Project Settings ---
 project_slug <- "walpole-wilderness-bioblitz-2025"  # Your iNaturalist project slug
+bioblitz_name <- "Walpole Wilderness"               # Name of your bioblitz (used in slides)
+bioblitz_year <- 2025                               # Year of the bioblitz
 n_photos <- 3                                       # Number of photos in slideshow
 bioblitz_logo <- "Walpole-Wilderness-bioblitz.jpg"   # Logo filename (in project root folder)
 
@@ -41,9 +51,26 @@ force_rebuild_slides <- FALSE     # TRUE = rebuild all slide compositions
 skip_osm_overlays <- FALSE        # TRUE = skip OpenStreetMap roads/waterways (faster)
 
 # --- Map Settings ---
-base_map_zoom <- 14      # Zoom level for satellite imagery (13-15 recommended)
-buffer_km <- 3.5         # Buffer around observations for base map extent (km) - recommended 3-5
-default_dist_m <- 4000   # Default map radius for individual observations (meters)
+# Map Provider Options (affects download speed):
+#   "Esri.WorldImagery"     - High quality satellite imagery (SLOWEST, best quality)
+#   "OpenStreetMap"         - Simple street map (FAST, clear but basic)
+#   "CartoDB.Positron"      - Light minimal map (FAST, clean look)
+#   "CartoDB.Voyager"       - Balanced detail map (FAST, good compromise)
+#   "Esri.WorldTopoMap"     - Topographic map (MEDIUM speed, shows terrain)
+# For LARGE areas, use "OpenStreetMap" or "CartoDB.Positron" for 10-20x faster downloads
+map_provider <- "Esri.WorldImagery"  # Change to "OpenStreetMap" for large areas
+base_map_zoom <- 14                  # Zoom level (13-15 recommended)
+                                      # Lower zoom (12-13) = faster downloads for large areas
+buffer_km <- 3.5                     # Buffer around observations for base map extent (km)
+                                      # Reduce to 2-3 for large areas to minimize download time
+default_dist_m <- 4000               # Default map radius for individual observations (meters)
+
+# PERFORMANCE TIPS FOR LARGE BIOBLITZES:
+# 1. Set map_provider = "OpenStreetMap" or "CartoDB.Positron" (10-20x faster than satellite)
+# 2. Set skip_osm_overlays = TRUE (skips road/waterway download)
+# 3. Reduce base_map_zoom to 12 or 13 (fewer tiles to download)
+# 4. Reduce buffer_km to 2-3 (smaller area to download)
+# 5. After first run, set force_rebuild_base_map = FALSE (reuse cached base map)
 
 # --- Slideshow Settings ---
 auto_advance_ms <- 7000        # Auto-advance time in milliseconds (7000 = 7 seconds)
@@ -54,7 +81,7 @@ create_pdf <- FALSE             # Set to FALSE to skip PDF creation (useful for 
 pdf_size_limit_mb <- 50        # Skip PDF if estimated size exceeds this (0 = no limit)
 
 # --- Output Settings ---
-out_dir <- "outputs/walpole_wilderness_bioblitz_2025_slideshow"  # Output directory
+out_dir <- "outputs/slideshow"  # Output directory (created automatically)
 diagnostic_mode <- TRUE  # Print detailed progress messages
 
 # ==============================================================================
@@ -64,6 +91,9 @@ diagnostic_mode <- TRUE  # Print detailed progress messages
 cat("=== CONFIGURATION LOADED ===\n")
 cat("Project:", project_slug, "\n")
 cat("Target photos:", n_photos, "\n")
+cat("Map provider:", map_provider, "\n")
+cat("Map zoom:", base_map_zoom, "\n")
+cat("OSM overlays:", if(skip_osm_overlays) "DISABLED (faster)" else "enabled", "\n")
 cat("Observer diversity: max", max_obs_per_observer_pct * 100, "% per observer\n")
 cat("Plant diversity: max", max_plants_pct * 100, "% plants\n")
 cat("Run mode:", if(fresh_run) "FRESH" else "INCREMENTAL", "\n")
@@ -93,12 +123,12 @@ compo_dir <- file.path(out_dir, "slides")
 styles_dir <- file.path(out_dir, "styles")
 base_map_dir <- file.path(out_dir, "base_map_cache")
 
-dir.create(out_dir, TRUE, FALSE)
-dir.create(photos_dir, TRUE, FALSE)
-dir.create(maps_dir, TRUE, FALSE)
-dir.create(compo_dir, TRUE, FALSE)
-dir.create(styles_dir, TRUE, FALSE)
-dir.create(base_map_dir, TRUE, FALSE)
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(photos_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(maps_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(compo_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(styles_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(base_map_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Clean up if fresh run requested
 if (fresh_run) {
@@ -117,9 +147,9 @@ if (fresh_run) {
     cat("  Keeping base map cache\n")
   }
   
-  dir.create(photos_dir, TRUE, FALSE)
-  dir.create(maps_dir, TRUE, FALSE)
-  dir.create(compo_dir, TRUE, FALSE)
+  dir.create(photos_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(maps_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(compo_dir, recursive = TRUE, showWarnings = FALSE)
   cat("  Old artifacts removed\n\n")
 }
 
@@ -160,15 +190,41 @@ inat_get <- function(path, query_list = list()) {
     }
   }
   req |>
-    req_user_agent("walpole-slideshow") |>
+    req_user_agent("bioblitz-slideshow") |>
     req_perform() |>
     resp_body_json(simplifyVector = FALSE)
 }
 
-best_photo_url <- function(photo_obj, size = c("large","medium")) {
-  u <- if (!is.null(photo_obj$url)) photo_obj$url else NA_character_
-  if (is.null(u) || is.na(u)) return(NA_character_)
-  sub("/[A-Za-z]+\\.(jpg|png)$", paste0("/", size[1], ".\\1"), u)
+best_photo_url <- function(photo_obj, size = c("original", "large", "medium")) {
+  # First try to get size-specific URL fields from API (if they exist)
+  for (s in size) {
+    url_field <- paste0(s, "_url")
+    u <- photo_obj[[url_field]]
+    if (!is.null(u) && !is.na(u) && nzchar(u)) {
+      return(u)
+    }
+  }
+  
+  # If size-specific fields don't exist, try URL manipulation
+  u <- photo_obj$url
+  if (is.null(u) || is.na(u) || !nzchar(u)) {
+    return(NA_character_)
+  }
+  
+  # iNaturalist photo URLs have patterns like:
+  # .../square.jpeg, .../medium.jpeg, .../large.jpeg, .../original.jpeg
+  # Also handles .jpg and .png extensions
+  for (s in size) {
+    # Try to replace size in URL (e.g., square.jpeg -> large.jpeg)
+    new_url <- sub("/[a-z]+\\.(jpeg|jpg|png)$", paste0("/", s, ".\\1"), u, ignore.case = TRUE)
+    if (new_url != u) {
+      # Successfully modified the URL
+      return(new_url)
+    }
+  }
+  
+  # If no pattern matched, return original URL
+  return(u)
 }
 
 flatten_obs <- function(o) {
@@ -192,7 +248,7 @@ flatten_obs <- function(o) {
 
 dl_file <- function(url, path) {
   try({
-    resp <- request(url) |> req_user_agent("walpole-slideshow") |> req_perform()
+    resp <- request(url) |> req_user_agent("bioblitz-slideshow") |> req_perform()
     writeBin(resp_body_raw(resp), path)
     TRUE
   }, silent = TRUE)
@@ -228,7 +284,8 @@ fetch_obs <- function(fetch_all = TRUE) {
         order = "desc",
         order_by = "id",
         fields = paste0("id,observed_on,geojson,user.login,user.name,",
-                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,photos.url")
+                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,",
+                        "photos.url,photos.original_url,photos.large_url,photos.medium_url")
       )
       q[["has[]"]] <- "photos"
       
@@ -249,7 +306,8 @@ fetch_obs <- function(fetch_all = TRUE) {
         order = "desc",
         order_by = "id",
         fields = paste0("id,observed_on,geojson,user.login,user.name,",
-                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,photos.url")
+                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,",
+                        "photos.url,photos.original_url,photos.large_url,photos.medium_url")
       )
       q[["has[]"]] <- "photos"
       
@@ -326,7 +384,8 @@ if (do_incremental) {
         order_by = "created_at",
         updated_since = last_fetch_time,
         fields = paste0("id,observed_on,geojson,user.login,user.name,",
-                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,photos.url")
+                        "taxon.name,taxon.preferred_common_name,taxon.iconic_taxon_name,",
+                        "photos.url,photos.original_url,photos.large_url,photos.medium_url")
       )
       q[["has[]"]] <- "photos"
       
@@ -424,7 +483,23 @@ obs_photos <- obs %>%
   filter(!is.na(photo_url)) %>%
   mutate(iconic_taxon = ifelse(is.na(iconic_taxon) | iconic_taxon == "", "Unknown", iconic_taxon))
 
-cat("With photos:", nrow(obs_photos), "\n\n")
+cat("With photos:", nrow(obs_photos), "\n")
+
+# DIAGNOSTIC: Check what photo URLs are being retrieved
+if (diagnostic_mode && nrow(obs_photos) > 0) {
+  cat("\n=== PHOTO URL DIAGNOSTICS ===\n")
+  cat("Checking first 3 observations for available photo URLs:\n\n")
+  for (i in 1:min(3, nrow(obs_photos))) {
+    cat("Observation", i, "(ID:", obs_photos$obs_id[i], "):\n")
+    photo_obj <- obs_photos$photos_list[[i]][[1]]
+    cat("  url:", if(!is.null(photo_obj$url)) photo_obj$url else "NULL", "\n")
+    cat("  original_url:", if(!is.null(photo_obj$original_url)) photo_obj$original_url else "NULL", "\n")
+    cat("  large_url:", if(!is.null(photo_obj$large_url)) photo_obj$large_url else "NULL", "\n")
+    cat("  medium_url:", if(!is.null(photo_obj$medium_url)) photo_obj$medium_url else "NULL", "\n")
+    cat("  Selected URL:", obs_photos$photo_url[i], "\n\n")
+  }
+}
+cat("\n")
 
 # ==============================================================================
 # SAMPLING WITH DIVERSITY
@@ -551,7 +626,7 @@ print(sampled %>% count(iconic_taxon))
 
 cat("\n=== BASE MAP ===\n")
 
-base_map_file <- file.path(base_map_dir, "satellite_base.tif")
+base_map_file <- file.path(base_map_dir, "base_map.tif")
 osm_data_file <- file.path(base_map_dir, "osm_overlays.rds")
 
 if (file.exists(base_map_file) && file.exists(osm_data_file) && !force_rebuild_base_map) {
@@ -563,7 +638,7 @@ if (file.exists(base_map_file) && file.exists(osm_data_file) && !force_rebuild_b
   
   # Diagnostic info
   ext <- terra::ext(sat_raster)
-  cat("  Satellite raster loaded\n")
+  cat("  Base map raster loaded\n")
   cat("    Extent (EPSG:3857):\n")
   cat("      X:", ext$xmin, "to", ext$xmax, "\n")
   cat("      Y:", ext$ymin, "to", ext$ymax, "\n")
@@ -671,17 +746,17 @@ if (file.exists(base_map_file) && file.exists(osm_data_file) && !force_rebuild_b
   cat("    X:", bbox_3857_coords["xmin"], "to", bbox_3857_coords["xmax"], "\n")
   cat("    Y:", bbox_3857_coords["ymin"], "to", bbox_3857_coords["ymax"], "\n")
   
-  cat("  Downloading satellite imagery...\n")
+  cat("  Downloading base map tiles (provider:", map_provider, ")...\n")
   sat_raster <- maptiles::get_tiles(
     x = bbox_sf,
-    provider = "Esri.WorldImagery",
+    provider = map_provider,
     zoom = base_map_zoom,
     crop = TRUE,
     cachedir = tempdir(),
     verbose = TRUE
   )
   
-  cat("  Satellite imagery downloaded\n")
+  cat("  Base map tiles downloaded\n")
   cat("    Dimensions:", terra::nrow(sat_raster), "x", terra::ncol(sat_raster), "\n")
   cat("    Layers:", terra::nlyr(sat_raster), "\n")
   
@@ -950,6 +1025,26 @@ if (any(need_download)) {
   samples$photo_exists <- file.exists(samples$photo_file_abs)
 } else {
   cat("All", nrow(samples), "photos available\n")
+}
+
+# DIAGNOSTIC: Check downloaded image sizes
+if (diagnostic_mode && nrow(samples) > 0) {
+  cat("\n=== DOWNLOADED IMAGE SIZE DIAGNOSTICS ===\n")
+  cat("Checking first 3 downloaded images:\n")
+  for (i in 1:min(3, nrow(samples))) {
+    if (file.exists(samples$photo_file_abs[i])) {
+      img_info <- file.info(samples$photo_file_abs[i])
+      img <- try(magick::image_read(samples$photo_file_abs[i]), silent = TRUE)
+      if (!inherits(img, "try-error")) {
+        img_geom <- magick::image_info(img)
+        cat("  Photo", i, "(obs", samples$obs_id[i], "):\n")
+        cat("    File size:", round(img_info$size / 1024, 1), "KB\n")
+        cat("    Dimensions:", img_geom$width, "x", img_geom$height, "pixels\n")
+        cat("    URL:", samples$photo_url[i], "\n\n")
+      }
+    }
+  }
+  cat("\n")
 }
 
 new_entries <- samples %>%
@@ -1370,7 +1465,7 @@ build_slides <- function() {
 slides_content <- build_slides()
 
 collage_block <- if (collage_ok) {
-  paste0("\n## Isn't the Walpole Wilderness Amazing?\n\n![](collage.png)\n")
+  paste0("\n## Isn't the ", bioblitz_name, " Amazing?\n\n![](collage.png)\n")
 } else {
   ""
 }
@@ -1397,14 +1492,14 @@ welcome_content <- if (nzchar(logo_rel)) {
 ![](', logo_rel, ')
 </div>
 
-# Walpole Wilderness Bioblitz 2025
+# ', bioblitz_name, ' Bioblitz ', bioblitz_year, '
 
 A random selection of photos from our amazing biodiversity survey.
 ')
 } else {
   paste0('# Welcome {.welcome-slide}
 
-# Walpole Wilderness Bioblitz 2025
+# ', bioblitz_name, ' Bioblitz ', bioblitz_year, '
 
 A random selection of photos from our amazing biodiversity survey.
 ')
