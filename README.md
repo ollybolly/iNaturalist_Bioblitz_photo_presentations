@@ -1,6 +1,6 @@
 # 🌿🔍 iNaturalist Bioblitz Slideshow Generator
 
-Automatically create beautiful, professional slideshows from your iNaturalist bioblitz observations. Perfect for event displays, presentations, and celebrating biodiversity discoveries!
+Automatically create slideshows from your iNaturalist bioblitz observations. Perfect for celebrating biodiversity discoveries with your participants!
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![R](https://img.shields.io/badge/R-%3E%3D4.0-blue)](https://www.r-project.org/)
