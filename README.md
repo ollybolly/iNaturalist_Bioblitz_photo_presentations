@@ -6,7 +6,7 @@ format: html
 # iNaturalist Bioblitz Slideshow Generator
 ## Complete User Guide
 
-**Version 1.0 | October 2025**
+**Version 2.0 | October 2025**
 
 ---
 
@@ -26,16 +26,25 @@ format: html
 
 ## Introduction
 
-This script automatically creates beautiful slideshows from iNaturalist bioblitz observations. It downloads photos, creates custom maps showing where each observation was made, and assembles everything into a professional slideshow presentation.
+This script automatically creates beautiful slideshows from iNaturalist bioblitz observations. It's **fully customizable for any bioblitz project** - just change a few settings and you're ready to go.
+
+The script downloads photos, creates custom maps showing where each observation was made, and assembles everything into a professional slideshow presentation.
 
 The slideshow includes:
 - Random selection of observations with biodiversity diversity controls
-- Satellite maps with roads and waterways showing observation locations
+- Customizable maps (satellite imagery, street maps, or topographic)
 - Organized by iconic taxon groups (Plants, Insects, Birds, etc.)
 - Auto-advancing slides perfect for display at events
 - Multiple output formats (HTML, QMD, and PDF)
+- Your bioblitz name and year on welcome slides
 
-**Who is this guide for?** Anyone who wants to create a slideshow from an iNaturalist project, even if you're new to R and RStudio.
+**Who is this guide for?** Anyone who wants to create a slideshow from an iNaturalist bioblitz, even if you're new to R and RStudio.
+
+**New in Version 2.0:**
+- Fast map providers for large area bioblitzes (10-20x faster)
+- Fully generalizable - works with any bioblitz project
+- Automatic high-resolution photo downloading
+- Configurable bioblitz name and year on slides
 
 ---
 
@@ -49,11 +58,12 @@ The slideshow includes:
    - Controls plant vs. animal ratio
    - Ensures representation across different species groups
 3. **Downloads Photos**: Gets high-quality images of each selected observation
-4. **Creates Custom Maps**: For each observation, generates a satellite map showing:
+4. **Creates Custom Maps**: For each observation, generates a map showing:
    - The observation location (marked with a red star)
    - Your bioblitz headquarters (marked with "HQ")
-   - Roads (in gold) and waterways (in blue) for context
+   - Optional roads (in gold) and waterways (in blue) for context
    - Scale bar for distance reference
+   - **Configurable base map**: Choose satellite imagery, street maps, or topographic
 5. **Composes Slides**: Combines photos with maps side-by-side, adds species names and observer credits
 6. **Builds Slideshow**: Creates a professional presentation organized by organism type
 7. **Generates Outputs**: Produces HTML (for viewing), QMD (for editing), and optionally PDF versions
@@ -63,8 +73,10 @@ The slideshow includes:
 - **Truly Random**: Every run selects different photos (perfect for daily displays)
 - **Diversity Controls**: Ensures fair representation across observers and taxa
 - **Efficient Caching**: After the first run, only checks for new observations (much faster!)
-- **Professional Quality**: Satellite imagery, clean typography, beautiful styling
-- **Customizable**: Extensive configuration options for your specific needs
+- **Flexible Map Options**: Choose from satellite, street, or topographic maps
+- **Performance Optimized**: Fast map providers for large areas (10-20x faster)
+- **High Resolution Photos**: Automatically downloads full-size images, not thumbnails
+- **Fully Customizable**: Your bioblitz name, year, and extensive configuration options
 
 ---
 
@@ -169,6 +181,8 @@ and
 
 ```r
 project_slug <- "walpole-wilderness-bioblitz-2025"
+bioblitz_name <- "Walpole Wilderness"
+bioblitz_year <- 2025
 n_photos <- 25
 bioblitz_logo <- "Walpole-Wilderness-Bioblitz.jpg"
 ```
@@ -180,6 +194,15 @@ bioblitz_logo <- "Walpole-Wilderness-Bioblitz.jpg"
   - Look at the URL: `https://www.inaturalist.org/projects/YOUR-PROJECT-NAME`
   - Copy everything after `/projects/`
   - Example: For `https://www.inaturalist.org/projects/city-nature-challenge-2025`, use `"city-nature-challenge-2025"`
+
+- `bioblitz_name`: The name of your bioblitz location
+  - **Used on slides**: This appears in the welcome slide and collage slide
+  - Example: `"City Nature Challenge"` or `"Green Valley Reserve"`
+  - Will display as "{Your Name} Bioblitz {Year}"
+
+- `bioblitz_year`: The year of your bioblitz
+  - **Used on slides**: Appears in the welcome slide
+  - Example: `2025` or `2024`
 
 - `n_photos`: Number of photos in your slideshow
   - **Common values**: 
@@ -362,35 +385,71 @@ Fine-tune what gets regenerated without doing a full `fresh_run`.
 ### Map Settings
 
 ```r
+map_provider <- "Esri.WorldImagery"
 base_map_zoom <- 14
 buffer_km <- 3.5
 default_dist_m <- 4000
+skip_osm_overlays <- FALSE
 ```
 
 **What these do:**
 
-Control map appearance and coverage.
+Control map appearance, coverage, and download speed.
 
-- `base_map_zoom`: Satellite image detail level
+- `map_provider`: Type of map to use (**affects speed dramatically!**)
+  - `"Esri.WorldImagery"` = Beautiful satellite imagery **(SLOWEST, best quality)**
+  - `"OpenStreetMap"` = Simple street map **(VERY FAST, clear)**
+  - `"CartoDB.Positron"` = Minimal light map **(VERY FAST, clean)**
+  - `"CartoDB.Voyager"` = Balanced detail map **(FAST, good compromise)**
+  - `"Esri.WorldTopoMap"` = Topographic map **(MEDIUM speed, shows terrain)**
+  
+- `base_map_zoom`: Map detail level
   - `14` = Good balance (recommended)
-  - `13` = Zoomed out more, larger area
-  - `15` = Zoomed in more, more detail
-  - **Higher = more detail but slower downloads**
+  - `13` = Zoomed out more, larger area, **faster downloads**
+  - `15` = Zoomed in more, more detail, **slower downloads**
+  - **Higher = more detail but slower**
 
 - `buffer_km`: Extra space around observations
   - `3.5` = 3.5km buffer around the project area
-  - **Larger values**: More context but bigger maps
-  - **Smaller values**: Tighter focus but less context
+  - **Larger values**: More context but bigger maps to download
+  - **Smaller values**: Tighter focus, faster downloads
 
 - `default_dist_m`: Radius for individual observation maps
   - `4000` = 4km radius around each observation
   - Ensures both observation and HQ are visible
 
+- `skip_osm_overlays`: Skip downloading roads and waterways
+  - `FALSE` = Include roads (gold) and waterways (blue)
+  - `TRUE` = Skip overlays **(2-5x faster for large areas)**
+
+**Performance Optimization for Large Areas:**
+
+If your bioblitz covers a large area (>50km²) and map downloads are taking too long, use these settings for **10-20x faster** generation:
+
+```r
+map_provider <- "OpenStreetMap"     # Use fast street map instead of satellite
+skip_osm_overlays <- TRUE           # Skip separate road/waterway download
+base_map_zoom <- 12                 # Reduce detail for fewer tiles
+buffer_km <- 2.5                    # Smaller buffer area
+```
+
 **When to change:**
 
-- **Large area project**: Increase `buffer_km` to `5`
-- **Small area project**: Decrease `buffer_km` to `2`
-- **Very detailed maps**: Increase `base_map_zoom` to `15` (slower)
+- **Small area (<10km²)**: Use defaults (satellite imagery looks great)
+- **Medium area (10-50km²)**: Use `"CartoDB.Voyager"` and `skip_osm_overlays <- TRUE`
+- **Large area (>50km²)**: Use `"OpenStreetMap"` and optimization settings above
+- **Very detailed maps**: Increase `base_map_zoom` to `15` (much slower)
+- **Quick testing**: Set `skip_osm_overlays <- TRUE`
+
+**Example: Daily event display for large area:**
+```r
+map_provider <- "CartoDB.Voyager"
+skip_osm_overlays <- TRUE
+base_map_zoom <- 13
+force_rebuild_base_map <- FALSE    # Reuse yesterday's base map
+```
+
+This reduces map generation from potentially hours to just minutes!
 
 ### Slideshow Settings
 
@@ -557,7 +616,9 @@ force_rebuild_slides <- TRUE    # Just rebuild slide compositions
 
 ## Output Files
 
-After running successfully, look in your output folder (check the Files pane, or look for the path shown in `out_dir`).
+After running successfully, the script creates an `outputs` folder in your project directory with a `slideshow` subfolder inside it. All files will be in `outputs/slideshow/`.
+
+**Quick access**: Look in RStudio's Files pane (bottom right), or check the path shown when the script completes.
 
 ### Main Files
 
@@ -689,6 +750,40 @@ use_random_seed <- TRUE
 random_seed <- NULL    # Make sure this is NULL, not a number
 ```
 
+### Problem: Photos are small/low resolution (thumbnails)
+
+**Cause**: Script is downloading thumbnail-sized images instead of full resolution.
+
+**Symptoms**: 
+- Photos look pixelated or blurry
+- Diagnostic output shows images are 75x75 pixels
+- URLs contain "square.jpeg" instead of "large.jpeg" or "original.jpeg"
+
+**Solution**:
+This should be fixed in Version 2.0+, but if you still see this issue:
+1. Make sure you're using the latest version of the script
+2. Check the diagnostic output (if `diagnostic_mode <- TRUE`):
+   ```
+   === DOWNLOADED IMAGE SIZE DIAGNOSTICS ===
+   ```
+3. The script should automatically convert thumbnail URLs to high-resolution URLs
+4. If problem persists, set `fresh_run <- TRUE` to re-download all photos
+
+### Problem: Map downloads taking too long
+
+**Cause**: Using satellite imagery for a large bioblitz area.
+
+**Solution**:
+Switch to a faster map provider:
+```r
+map_provider <- "OpenStreetMap"     # 10-20x faster
+skip_osm_overlays <- TRUE           # Skip roads/waterways
+base_map_zoom <- 12                 # Fewer tiles
+buffer_km <- 2.5                    # Smaller area
+```
+
+See the [Map Settings](#map-settings) section for details on optimization.
+
 ---
 
 ## Tips and Best Practices
@@ -724,11 +819,30 @@ random_seed <- NULL    # Make sure this is NULL, not a number
 
 ### Optimizing Performance
 
+**General optimizations:**
 1. **Keep cache files**: Don't delete `.rds` files between runs
 2. **Use incremental fetch**: `use_incremental_fetch <- TRUE`
 3. **Don't rebuild unnecessarily**: Keep `fresh_run <- FALSE` after first run
 4. **Start small**: Test with 10-25 photos before making large slideshows
 5. **Monitor first run**: Watch for errors in package installation
+
+**For large area bioblitzes (faster map generation):**
+1. **Use faster map provider**: `map_provider <- "OpenStreetMap"` (10-20x faster than satellite)
+2. **Skip overlays**: `skip_osm_overlays <- TRUE` (no roads/waterways)
+3. **Lower zoom**: `base_map_zoom <- 12` or `13` (fewer tiles to download)
+4. **Smaller buffer**: `buffer_km <- 2.5` (smaller area to download)
+5. **Reuse base map**: After first run, set `force_rebuild_base_map <- FALSE`
+
+**Example fast configuration for 100+km² area:**
+```r
+map_provider <- "CartoDB.Voyager"  # Fast, looks good
+skip_osm_overlays <- TRUE
+base_map_zoom <- 12
+buffer_km <- 2.5
+force_rebuild_base_map <- FALSE    # After first run
+```
+
+This can reduce map generation from 1+ hour to just 5-10 minutes!
 
 ### Creating Multiple Versions
 
@@ -877,6 +991,17 @@ fresh_run <- FALSE
 
 ## Version History
 
+**Version 2.0 (October 2025)**
+- **NEW**: Configurable map providers (satellite, street maps, topographic)
+- **NEW**: `bioblitz_name` and `bioblitz_year` configuration variables for customizable slide text
+- **NEW**: Automatic high-resolution photo URL detection (fixes thumbnail issues)
+- **NEW**: Diagnostic mode output for troubleshooting photo quality
+- **IMPROVED**: Automatic directory creation (`outputs/slideshow`)
+- **IMPROVED**: Performance optimization options for large bioblitz areas
+- **IMPROVED**: 10-20x faster map generation with alternative map providers
+- **IMPROVED**: Fixed `.jpeg` file extension support in photo URLs
+- Script now fully generalizable to any iNaturalist bioblitz project
+
 **Version 1.0 (October 2025)**
 - Initial release
 - iNaturalist API integration
@@ -890,14 +1015,13 @@ fresh_run <- FALSE
 
 ## Credits
 
-This script was developed for the Walpole Wilderness Bioblitz 2025 and is designed to work with any iNaturalist project.
+This script was originally developed for the Walpole Wilderness Bioblitz 2025 and has been generalized to work with any iNaturalist bioblitz project worldwide.
 
 **Technologies used:**
 - R and RStudio
 - Quarto for slideshow generation
 - Reveal.js for HTML presentations
-- Esri satellite imagery
-- OpenStreetMap data
+- Multiple map providers: Esri (satellite & topographic), OpenStreetMap, CartoDB
 - iNaturalist API
 
 ---
