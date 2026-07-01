@@ -1,628 +1,192 @@
 # 🌿🔬 iNaturalist Bioblitz Slideshow Generator
 
-Automatically create slideshows from your iNaturalist bioblitz observations. Perfect for celebrating biodiversity discoveries with your participants!
+Turn your iNaturalist bioblitz observations into a polished, auto-playing photo slideshow. Perfect for celebrating biodiversity discoveries with your participants, on a screen at the event or shared afterwards.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![R](https://img.shields.io/badge/R-%3E%3D4.0-blue)](https://www.r-project.org/)
 
 ---
 
-## ✨ Features
+## ✨ What you get
 
-- **🎲 Truly Random**: Every run creates a unique selection of observations
-- **🌍 Custom Maps**: Automatically generates location maps for each observation with your bioblitz HQ marker
-- **📊 Smart Diversity Controls**: Ensures fair representation across observers and species groups
-- **⚡ Performance Optimized**: Fast map providers and incremental caching for large bioblitzes
-- **🎨 Fully Customizable**: Configure everything from map styles to slideshow timing
-- **📱 Multiple Outputs**: HTML (interactive), QMD (editable), and PDF formats
-- **🔄 Daily Updates**: Efficiently fetch only new observations for ongoing events
-- **🖼️ High-Resolution Photos**: Automatically downloads full-size images
-- **🖥️ **NEW: User-Friendly GUI**: Interactive Shiny app interface - no code editing required!
+- **Random, diverse selection.** Each run draws a fresh sample of observations, with controls that stop any one observer or plants from dominating.
+- **Location map per photo.** Every slide pairs a species photo with a satellite map showing where it was found, plus your bioblitz HQ, roads and waterways.
+- **Reveal.js HTML slideshow.** Interactive, auto-advancing and loopable, organised by iconic taxon groups, with a closing photo collage.
+- **Taxon silhouettes.** PhyloPic icons are fetched once, recoloured to match the palette and cached for reuse.
+- **Fast repeat runs.** Incremental fetch pulls only new observations, and cached photos, maps and slides are reused unless you ask for a rebuild.
+- **Two ways to run.** A point-and-click Shiny app, or the R script on its own for full control.
 
-## 🎯 What It Does
+---
 
-The script connects to iNaturalist's API to:
+## 🎯 How it works
 
-1. Download observation data from your specified bioblitz project
-2. Randomly select observations with diversity controls (prevents one observer from dominating, balances plant vs. animal ratio)
-3. Download high-quality photos of each selected observation
-4. Generate custom maps showing observation locations, your bioblitz HQ, roads, and waterways
-5. Create professional slideshow presentations organized by iconic taxon groups (Plants, Insects, Birds, etc.)
-6. Output in multiple formats perfect for event displays or presentations
+The script talks to the iNaturalist API and then:
 
-**New in Version 3.0:**
-- **Interactive Shiny GUI** - Easy point-and-click interface with live progress tracking
-- **Two Usage Methods** - Choose between GUI app or traditional R script
-- Colorful emoji progress indicators (🔭👥📷🗺️🎬)
-- Real-time observation and observer counts
-- Enhanced progress monitoring with detailed stages
+1. Downloads observation data from your project.
+2. Samples observations at random, with diversity controls (per-observer caps and a plant limit).
+3. Downloads full-size photos for the selected observations.
+4. Builds a satellite location map for each one, centred between HQ and the observation.
+5. Composes each slide (photo plus map, with species name, observer credit and a taxon icon baked in).
+6. Assembles a reveal.js HTML slideshow and a closing collage.
+7. Optionally exports a PDF.
 
-## 🚀 Two Ways to Use
+---
 
-### Method 1: Shiny GUI App (Recommended for Most Users) 🖥️
+## 📦 Repository contents
 
-**Best for:** Users who prefer a visual interface, want to experiment with settings, or need live progress tracking
+```
+.
+├── Walpole_Bioblitz_Photo_Slideshow_Script_V4.R   # The slideshow engine (edit config, or drive it from the app)
+├── bioblitz_shiny_app_V4.R                         # The Shiny GUI (recommended for most users)
+├── bioblitz_style.R                                # Shared palette + taxon icon helpers (REQUIRED, see below)
+├── taxon_icons/                                     # Icon cache, created here on first run (shared, safe to keep)
+├── README.md                                        # This file
+├── USER_GUIDE.md                                    # Full step-by-step documentation
+├── LICENSE.txt                                      # GPL v3
+└── outputs/                                          # Created automatically when you run
+    └── <project>_slideshow/
+        ├── slideshow.html          # The slideshow (open from inside this folder)
+        ├── collage.png             # Closing collage
+        ├── slideshow.pdf           # Optional PDF
+        ├── slides/                 # Composed slide images
+        ├── maps/                   # Per-observation maps
+        ├── photos/                 # Downloaded photos
+        ├── base_map_cache/         # Cached satellite base map
+        └── *.rds                   # Observation and photo caches (speed up reruns)
+```
 
-**Advantages:**
-- No code editing required - all settings in a user-friendly interface
-- Real-time progress updates with colorful indicators
-- Save and load configurations for repeated use
-- See file counts update as slideshow generates
-- Quick access buttons to open outputs
-- Perfect for event organizers during multi-day bioblitzes
+> ⚠️ **`bioblitz_style.R` must sit in the same folder as the slideshow script.** The script loads it on startup for the shared Wes Anderson palette and the PhyloPic taxon icons. If it is missing, the run will not start. The Shiny app checks for it and shows a clear status before you generate.
+>
+> On the first run it fetches taxon silhouettes from PhyloPic (internet needed once), recolours them and caches them in a `taxon_icons/` folder next to the script. After that it works offline, and the same cache is reused across runs and by the Data Dive deck.
 
-**Quick Start:**
-1. Open `bioblitz_shiny_app_FINAL.R` in RStudio
-2. Click **Run App** (top right of script pane)
-3. Configure settings in the GUI tabs
-4. Click **Generate Slideshow**
-5. Watch progress in real-time!
+---
 
-[→ Jump to Shiny App Instructions](#shiny-gui-app-detailed-instructions)
+## 🚀 Two ways to use it
 
-### Method 2: Traditional R Script 📝
+### Method 1: Shiny GUI app (recommended)
 
-**Best for:** Advanced users, automated workflows, or when you want maximum control
+Best if you prefer a visual interface, want live progress, or are running a multi-day event with frequent updates.
 
-**Advantages:**
-- Full control over every parameter
-- Can be integrated into larger workflows
-- Easier to version control settings
-- Can be run from command line
-- No GUI overhead
+1. Open `bioblitz_shiny_app_V4.R` in RStudio.
+2. Click **Run App** (top right of the editor).
+3. On the **Configuration** tab, browse to the slideshow script, enter your project slug and HQ coordinates, and choose an output folder.
+4. On **Run & progress**, pick a preset (or leave the defaults) and click **Generate slideshow**.
+5. When it finishes, the app switches to **Outputs**, where you can open the slideshow in your browser.
 
-**Quick Start:**
-1. Open `iNaturalist_Bioblitz_Slideshow_Generator.R` in RStudio
-2. Edit configuration section (around line 50)
-3. Click **Source** or press `Ctrl+Shift+S`
-4. Wait for completion
-5. Find slideshow in `outputs/slideshow/`
+The app never edits the script. It passes your settings to a background R process and shows the live log, stage checklist and file counts as they build.
 
-[→ Jump to Script Instructions](#traditional-r-script-detailed-instructions)
+### Method 2: The R script on its own
+
+Best if you are comfortable with R, want to automate runs, or prefer to version-control your settings.
+
+1. Put `Walpole_Bioblitz_Photo_Slideshow_Script_V4.R` and `bioblitz_style.R` in the same folder.
+2. Open the script in RStudio and set that folder as the working directory (Session, Set Working Directory, To Source File Location).
+3. Edit the **CONFIGURATION** block near the top (roughly lines 55 to 135).
+4. Click **Source**, or run `Rscript Walpole_Bioblitz_Photo_Slideshow_Script_V4.R` from a terminal.
+5. Find your slideshow in `outputs/<project>_slideshow/`.
 
 ---
 
 ## 📋 Prerequisites
 
-### Required Software
+**Software**
 
-- **R** (version 4.0 or higher) - [Download here](https://cran.r-project.org/)
-- **RStudio** (Desktop version) - [Download here](https://posit.co/download/rstudio-desktop/)
-- **Google Chrome** (for PDF generation, optional) - [Download here](https://www.google.com/chrome/)
+- **R** 4.0 or newer. https://cran.r-project.org/
+- **RStudio Desktop.** https://posit.co/download/rstudio-desktop/
+- **Google Chrome or Chromium** (only if you want the optional PDF). https://www.google.com/chrome/
 
-### R Packages
+**R packages** (installed automatically on first run)
 
-The script will automatically install all required packages on first run:
-- `httr2`, `jsonlite` - iNaturalist API connection
-- `dplyr`, `tidyr`, `purrr` - Data manipulation
-- `ggplot2`, `sf` - Map creation
-- `maptiles`, `terra`, `osmdata` - Geographic features
-- `magick` - Image processing
-- `quarto` - Slideshow generation
-- `shiny`, `shinydashboard`, `shinyWidgets` - GUI interface (for Shiny app)
+- API and data: `httr2`, `jsonlite`, `dplyr`, `purrr`, `tidyr`, `stringr`, `lubridate`, `janitor`, `glue`, `readr`, `tibble`
+- Maps and images: `ggplot2`, `sf`, `maptiles`, `terra`, `tidyterra`, `osmdata`, `magick`, `ggspatial`
+- Palette and taxon icons: `wesanderson`, `rphylopic`, `png`
+- GUI (app only): `shiny`, `shinydashboard`, `shinyWidgets`, `shinyFiles`
+- Optional PDF: `quarto`, `pagedown`
 
-*First-time setup may take 10-15 minutes while packages install.*
+First-time package installation can take 10 to 15 minutes. You only do it once.
 
----
+**Before you start, gather**
 
-## 🖥️ Shiny GUI App: Detailed Instructions
-
-### Launching the App
-
-1. **Open the app file** in RStudio:
-   - File: `bioblitz_shiny_app_FINAL.R`
-   - Or create a launcher file (see below)
-
-2. **Click the "Run App" button** that appears at the top right of the script editor
-   - Alternatively, type `shiny::runApp("bioblitz_shiny_app_FINAL.R")` in the Console
-
-3. **The app opens** in a new window or your web browser
-
-### App Interface Overview
-
-The Shiny app has four main tabs:
-
-#### 📝 Configuration Tab
-
-Set all your slideshow parameters:
-
-1. **Script Location**
-   - Specify the filename of your main slideshow script
-   - Default: `Final_Walpole_Bioblitz_Slideshow_Script.R`
-   - Must be in the same folder as the Shiny app
-
-2. **Project Settings**
-   - iNaturalist project slug (from your project URL)
-   - Number of photos in slideshow
-   - Optional: Upload your bioblitz logo
-   - Output directory name
-
-3. **Location Settings (for Maps)**
-   - Headquarters latitude and longitude
-   - Base map zoom level
-   - Map buffer distance
-   - Individual map radius
-
-4. **Diversity Settings**
-   - Max % from single observer
-   - Absolute max per observer
-   - Max % plant photos
-
-5. **Slideshow Settings**
-   - Auto-advance timing
-   - Loop option
-   - Maximum collage photos
-
-6. **Run Mode & Performance**
-   - **Fresh Run**: Delete old files and start fresh
-   - **Incremental Update**: Keep cache, only fetch new observations
-   - Fetch all observations toggle
-   - Cache observations toggle
-   - Use incremental fetch option
-
-7. **Advanced Options**
-   - Force rebuild base map
-   - Force rebuild all maps
-   - Force rebuild all slides
-   - Skip OSM overlays (faster)
-
-8. **PDF Output Settings**
-   - Create PDF toggle
-   - PDF size limit
-
-9. **Random Seed**
-   - Use random selection
-   - Optional: Set specific seed for reproducibility
-
-**Save/Load Configurations:**
-- Click "Save Configuration" to save current settings
-- Click "Load Configuration" to restore saved settings
-- Configurations saved as `shiny_config.rds` in app folder
-
-#### ▶️ Run & Progress Tab
-
-Monitor slideshow generation in real-time:
-
-**Progress Indicators** (with colorful emojis!):
-- 🔭 **Total Observations** - Shows cached observation count
-- 👥 **Total Unique Observers** - Shows number of contributors
-- 📷 **Photos (This Run)** - New photos downloaded
-- 🗺️ **Maps (This Run)** - New maps created
-- 🎬 **Slides (This Run)** - New slides composed
-
-**Progress Stages Checklist:**
-- ✓ Initializing
-- ✓ Fetching observations from iNaturalist
-- ✓ Downloading photos
-- ✓ Creating maps
-- ✓ Composing slides
-- ✓ Building slideshow
-- ✓ Complete!
-
-**Live Progress Log:**
-- Shows real-time output from script
-- Filtered to show important progress only
-- Collapsible for cleaner view
-
-**Controls:**
-- **Generate Slideshow** - Start the process
-- **Stop Process** - Cancel running slideshow
-- **Refresh File Counts** - Manually update counts if stuck
-
-#### 📂 Outputs Tab
-
-Access your generated files:
-
-- **Output Location** - Shows full path to output folder
-- **Available Files** - Lists slideshow.html, slideshow.pdf, etc.
-- **Open Slideshow in Browser** - Opens HTML slideshow
-- **Open Output Folder** - Opens folder in file explorer
-
-#### ❓ Help Tab
-
-Quick reference guide for using the app
-
-### Typical Workflow (Shiny App)
-
-**For a New Bioblitz:**
-
-1. **Configuration Tab**
-   - Enter your project slug
-   - Set HQ coordinates
-   - Upload logo (optional)
-   - Set number of photos (25-50 recommended)
-   - Enable "Fresh Run"
-   - Click "Save Configuration"
-
-2. **Run & Progress Tab**
-   - Click "Generate Slideshow"
-   - Watch progress indicators update
-   - Monitor live log for details
-   - Wait for "Complete!" status
-
-3. **Outputs Tab**
-   - Click "Open Slideshow in Browser"
-   - Or click "Open Output Folder" to see all files
-
-**For Daily Updates (Multi-Day Bioblitz):**
-
-1. **Configuration Tab**
-   - Click "Load Configuration" (restores your settings)
-   - **Uncheck "Fresh Run"**
-   - **Enable "Use Incremental Fetch"**
-   - This fetches only new observations!
-
-2. **Run & Progress Tab**
-   - Notice cached observation count shown immediately
-   - Click "Generate Slideshow"
-   - Much faster - only processes new observations
-   - Progress shows incremental counts
-
-3. **Outputs Tab**
-   - New slideshow with updated observations
-   - Previous files preserved in output folder
-
-### Shiny App Tips
-
-✅ **Do:**
-- Save your configuration after first setup
-- Use "Fresh Run" for your first slideshow
-- Use incremental mode for daily updates
-- Watch the progress log for errors
-- Use "Refresh File Counts" if numbers seem stuck
-
-❌ **Don't:**
-- Close the app window while slideshow is generating
-- Change configuration during generation
-- Use "Fresh Run" for daily updates (you'll lose cache!)
+- Your **project slug**, the part of the project URL after `/projects/` (for example `walpole-wilderness-bioblitz-2025`).
+- Your **HQ coordinates** (right-click the spot in Google Maps and copy the latitude and longitude).
+- Optionally, a **logo** (JPG or PNG) for the welcome slide.
 
 ---
 
-## 📝 Traditional R Script: Detailed Instructions
+## ⚙️ Key settings at a glance
 
-### Setup and Configuration
+These apply to both methods. In the app you enter percentages and seconds; in the raw script the same values are fractions and milliseconds.
 
-1. **Open the script** in RStudio:
-   - File: `iNaturalist_Bioblitz_Slideshow_Generator.R`
+| Setting | App | Script | Default |
+|---|---|---|---|
+| Project slug | Project settings | `project_slug` | (required) |
+| Bioblitz name | Project settings | `bioblitz_name` | Walpole Wilderness Bioblitz |
+| Number of photos | Project settings | `n_photos` | 50 |
+| HQ latitude / longitude | Location & maps | `hq_lat` / `hq_lon` | -34.992854 / 116.634398 |
+| Max per observer | Selection diversity | `max_obs_per_observer_pct`, `max_obs_per_observer_abs` | 15% and 5 |
+| Max plants | Selection diversity | `max_plants_pct` | 40% |
+| Auto-advance | Slideshow playback | `auto_advance_ms` | 7 s |
+| Map zoom / radius / padding | Location & maps | `base_map_zoom`, `default_dist_m`, `map_pad_m` | 14 / 4000 m / 1000 m |
+| Random seed | Reproducibility | `use_random_seed`, `random_seed` | random each run |
 
-2. **Find the configuration section** (around line 50)
-
-3. **Edit essential settings:**
-
-```r
-# --- Essential Settings ---
-project_slug <- "your-project-name-here"  # From your iNaturalist project URL
-bioblitz_name <- "Your Location"           # Appears on welcome slides
-bioblitz_year <- 2025                      # Year of your bioblitz
-n_photos <- 25                             # Number of photos in slideshow
-
-# --- HQ Location ---
-hq_lon <- 116.634398  # Your headquarters longitude
-hq_lat <- -34.992854  # Your headquarters latitude
-
-# --- Optional: Add Your Logo ---
-bioblitz_logo <- "your-logo.jpg"  # Place logo file in project root
-```
-
-**Finding your project slug:**
-- Go to your iNaturalist project page
-- Copy everything after `/projects/` in the URL
-- Example: `https://www.inaturalist.org/projects/city-nature-challenge-2025` → `"city-nature-challenge-2025"`
-
-**Finding your coordinates:**
-- Right-click your HQ location in Google Maps
-- Click the coordinates to copy them
-- First number is longitude, second is latitude
-
-### Running the Script
-
-**Method A: Source Button**
-1. Click **Source** at the top right of the script editor
-2. Or press `Ctrl+Shift+S` (Windows/Linux) or `Cmd+Shift+S` (Mac)
-3. Watch progress in the Console
-4. Wait for "SCRIPT COMPLETED SUCCESSFULLY"
-
-**Method B: Command Line**
-```bash
-Rscript iNaturalist_Bioblitz_Slideshow_Generator.R
-```
-
-### Script Output
-
-The script creates files in `outputs/slideshow/`:
-- `slideshow.html` - Main interactive presentation
-- `slideshow.qmd` - Editable Quarto source
-- `slideshow.pdf` - PDF version (if enabled)
-- `slides/` - Individual slide images
-- `maps/` - Location maps
-- `photos/` - Downloaded photos
-- Cache files (`.rds`) - For faster reruns
+See [USER_GUIDE.md](USER_GUIDE.md) for the full reference, including the rebuild switches and presets.
 
 ---
 
-## 🎛️ Key Configuration Options
+## 🗂️ About the output
 
-*These apply to both Shiny app and traditional script*
+The slideshow is a reveal.js page that **references its images by relative path** (the slide pictures in `slides/`, the `collage.png` and the logo). It is not a single self-contained file. So:
 
-### Project Settings
-```r
-project_slug <- "your-project-slug"   # iNaturalist project identifier
-n_photos <- 25                         # Number of photos (25-100 typical)
-bioblitz_name <- "Your Location"       # Name for slides
-bioblitz_year <- 2025                  # Year for slides
-```
-
-### Diversity Controls
-```r
-max_obs_per_observer_pct <- 0.15  # Max 15% from any one observer
-max_obs_per_observer_abs <- 5     # Absolute max per observer
-max_plants_pct <- 0.50             # Max 50% plants
-```
-
-### Map Customization
-```r
-# Choose your map style:
-map_provider <- "Esri.WorldImagery"    # Satellite (high quality, slower)
-map_provider <- "OpenStreetMap"        # Street map (fast)
-map_provider <- "CartoDB.Voyager"      # Balanced (fast, good detail)
-map_provider <- "Esri.WorldTopoMap"    # Topographic (shows terrain)
-
-base_map_zoom <- 14                    # Zoom level (13-15)
-buffer_km <- 3.5                       # Area around observations
-```
-
-### Slideshow Behavior
-```r
-auto_advance_ms <- 7000        # 7 seconds per slide
-auto_slide_stoppable <- TRUE   # Allow manual control
-slideshow_loop <- FALSE        # Loop at end
-create_pdf <- TRUE             # Generate PDF version
-```
-
-### Run Modes
-
-**Fresh Run** (clean slate):
-```r
-fresh_run <- TRUE                   # Delete old outputs
-fetch_all_observations <- TRUE      # Download all observations
-cache_observations <- TRUE          # Save for future use
-```
-
-**Incremental Update** (daily bioblitz):
-```r
-fresh_run <- FALSE                  # Keep existing files
-use_incremental_fetch <- TRUE       # Only fetch new observations
-cache_observations <- TRUE          # Update cache
-```
-
-### Performance Optimization
-
-For large bioblitz areas, use these settings for 10-20x faster generation:
-
-```r
-map_provider <- "OpenStreetMap"     # Fast map provider
-skip_osm_overlays <- TRUE           # Skip road/waterway overlays
-base_map_zoom <- 12                 # Lower zoom level
-buffer_km <- 2.5                    # Smaller area
-force_rebuild_base_map <- FALSE     # After first run
-```
+- **Open `slideshow.html` from inside its output folder.** Moving the HTML on its own will break the images.
+- **To share it, keep the folder together.** Zip the whole `<project>_slideshow` folder, or at least ship `slideshow.html` alongside its `slides/` folder, `collage.png` and the logo.
+- The optional `slideshow.pdf` is a single portable file, handy for emailing.
 
 ---
 
-## 💡 Common Use Cases
+## 🔁 Typical workflows
 
-### Multi-Day Bioblitz Event Display
+**A new slideshow.** In the app, use the **Fresh run** preset (or set `fresh_run <- TRUE`), enter your details and generate. This clears old artefacts and rebuilds everything.
 
-**Day 1 (Shiny App):**
-1. Open Shiny app
-2. Configure all settings in GUI
-3. Enable "Fresh Run"
-4. Save configuration
-5. Generate slideshow
-6. Display on screen with auto-loop
+**Daily updates during a multi-day event.** Leave **Fresh run** off and keep **Fetch only new observations** on (`use_incremental_fetch <- TRUE`). Each run pulls just the new records and reuses cached work, so it is much faster.
 
-**Days 2-7 (Fast Updates):**
-1. Open Shiny app
-2. Load saved configuration
-3. **Disable "Fresh Run"**
-4. **Enable "Use Incremental Fetch"**
-5. Generate slideshow (much faster!)
-6. New observations automatically included
+**Same photos as last time.** Reuse the seed. In the app click **Use last run seed** on the Run tab, or set a specific number in `random_seed`. Every run with the same seed selects the same observations.
 
-**Alternative (Script Method):**
-```r
-# Day 1
-fresh_run <- TRUE
-n_photos <- 50
-slideshow_loop <- TRUE
-
-# Days 2-7 (edit script each day)
-fresh_run <- FALSE
-use_incremental_fetch <- TRUE
-```
-
-### One-Time Presentation
-
-**Shiny App:**
-- Set photos to 25-50
-- Enable "Create PDF"
-- Disable "Loop Slideshow"
-- Set auto-advance to 7 seconds
-- Generate once
-
-**Script:**
-```r
-n_photos <- 25
-fresh_run <- TRUE
-create_pdf <- TRUE
-slideshow_loop <- FALSE
-auto_advance_ms <- 7000
-```
-
-### Large Slideshow (100+ photos)
-
-**Shiny App:**
-- Set photos to 100
-- Max per observer: 5
-- Disable "Create PDF" (file size)
-- Use cached data
-
-**Script:**
-```r
-n_photos <- 100
-max_obs_per_observer_abs <- 5
-create_pdf <- FALSE
-fresh_run <- FALSE
-```
+**A quick check of your settings.** Use the **Quick test (3 slides)** preset for a fast, three-photo build.
 
 ---
 
-## 🛠️ Troubleshooting
+## 🛠️ Troubleshooting quick hits
 
-### Shiny App Issues
+- **The run will not start / red style-file warning.** `bioblitz_style.R` is not next to the slideshow script. Put it in the same folder.
+- **A layout change is not showing up.** Cached images are being reused. Clear them from the app's **Housekeeping** panel (maps, slides or collage), or tick the matching **Rebuild** option, then generate again.
+- **Taxon icons look wrong after a palette change.** Tick **Rebuild taxon icons** (`force_rebuild_icons`) once to refresh the icon cache.
+- **Progress counts look stuck.** Click **Refresh file counts**, and check the live log for errors. The background process may still be working.
+- **No observations found.** Check the project slug is exact and that the project has observations with photos.
 
-**"Cannot find script file"**
-- Make sure the main R script is in the same folder as the Shiny app
-- Check the script filename in Configuration tab
-- Default name: `Final_Walpole_Bioblitz_Slideshow_Script.R`
-
-**Progress indicators stuck at zero**
-- Click "Refresh File Counts" button
-- Check "Live Progress Log" for errors
-- Script may still be initializing
-
-**App freezes or becomes unresponsive**
-- Don't close the browser/window - it's still working
-- Check the Live Progress Log
-- Background process runs separately
-
-**"Process may still be running" after closing**
-- The background script continues even if you close the app
-- Reopen the app and click "Stop Process"
-- Or check Task Manager for stray R processes
-
-### Script Issues
-
-**"Cannot connect to iNaturalist"**
-- Check your internet connection
-- Verify your `project_slug` is correct
-- Check iNaturalist API status
-
-**"No observations found"**
-- Verify your project has observations with photos
-- Check date filters if using them
-- Ensure `fetch_all_observations <- TRUE` for first run
-
-**Script is slow**
-- For large bioblitzes, use `map_provider <- "OpenStreetMap"`
-- Set `skip_osm_overlays <- TRUE`
-- Reduce `base_map_zoom` to 12 or 13
-- See [Performance Optimization](#performance-optimization)
-
-**Package installation fails**
-- Update R and RStudio to latest versions
-- Try installing packages manually: `install.packages("package_name")`
-- Check the Console for specific error messages
-
-For comprehensive troubleshooting, see the [User Guide](Bioblitz_photo_show_user_guide.md#troubleshooting).
-
----
-
-## 📁 Repository Structure
-
-```
-.
-├── iNaturalist_Bioblitz_Slideshow_Generator.R  # Main slideshow script
-├── bioblitz_shiny_app_FINAL.R                  # Shiny GUI application
-├── Bioblitz_photo_show_user_guide.md           # Comprehensive documentation
-├── README.md                                    # This file
-├── LICENSE.txt                                  # GPL v3 license
-└── outputs/                                     # Generated slideshows (created automatically)
-    └── slideshow/
-        ├── slideshow.html
-        ├── slideshow.qmd
-        ├── slideshow.pdf
-        ├── slides/
-        ├── maps/
-        └── photos/
-```
-
----
-
-## 🌟 Examples
-
-This script was originally developed for the **Walpole Wilderness Bioblitz 2025** and has been generalized to work with any iNaturalist bioblitz project worldwide.
-
-Share your slideshows with the iNaturalist community and help celebrate biodiversity discoveries! 🦋🌿🦎
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! If you've made improvements or have suggestions:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Full troubleshooting is in the [User Guide](USER_GUIDE.md#troubleshooting).
 
 ---
 
 ## 📄 License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE.txt](LICENSE.txt) file for details.
-
-This means you are free to:
-- Use the software for any purpose
-- Change the software to suit your needs
-- Share the software with others
-- Share the changes you make
-
-Under the following conditions:
-- You must share your modifications under the same GPL v3 license
-- You must include the original copyright notice
-- You must include a copy of the GPL v3 license
+Licensed under the GNU General Public License v3.0. See [LICENSE.txt](LICENSE.txt). You are free to use, change and share the software and your changes, provided you share modifications under the same licence and keep the original notices.
 
 ---
 
-## 👥 Authors
+## 👥 Authors and acknowledgements
 
-**Olly Berry** and **Claude**
+**Olly Berry** and **Claude**.
 
----
-
-## 🙏 Acknowledgements
-
-- Thanks to all organizers and participants in the **Walpole Wilderness Bioblitzes**
-- [iNaturalist](https://www.inaturalist.org/) for providing the API and platform
-- The R community for excellent mapping and data processing packages
-- [Quarto](https://quarto.org/) and [Reveal.js](https://revealjs.com/) for slideshow capabilities
-- Map data providers: Esri, OpenStreetMap, CartoDB
-- The Shiny team at Posit for the excellent GUI framework
+With thanks to the organisers and participants of the **Walpole Wilderness Bioblitzes**, to [iNaturalist](https://www.inaturalist.org/) for the API and platform, to [PhyloPic](https://www.phylopic.org/) for the silhouettes, to [reveal.js](https://revealjs.com/) for the slideshow framework, to the map data providers (Esri, OpenStreetMap), and to the R and Shiny communities.
 
 ---
 
-## 📞 Support
-
-- **Documentation**: See [Bioblitz_photo_show_user_guide.md](Bioblitz_photo_show_user_guide.md)
-- **Issues**: Open an issue on GitHub
-- **Questions**: Contact through GitHub discussions
-
----
-
-## 🔗 Related Resources
+## 🔗 Related resources
 
 - [iNaturalist Help](https://www.inaturalist.org/pages/help)
-- [R Documentation](https://www.r-project.org/help.html)
-- [RStudio Documentation](https://support.posit.co/hc/en-us)
-- [Quarto Documentation](https://quarto.org/docs/guide/)
-- [Shiny Documentation](https://shiny.posit.co/)
+- [R](https://www.r-project.org/help.html) and [RStudio](https://support.posit.co/hc/en-us) documentation
+- [reveal.js](https://revealjs.com/) and [Shiny](https://shiny.posit.co/) documentation
 
 ---
 
-**Happy Slideshow Creating!** 🦋🌿🦎
-
-*Choose your preferred method - Shiny GUI for ease of use, or R script for maximum control!*
-
-*If you create something cool with this script, please consider sharing it back with the iNaturalist community!*
+**Happy slideshow making.** 🦋🌿🦎 If you create something you are proud of, consider sharing it back with the iNaturalist community.
