@@ -1,18 +1,31 @@
 # ==============================================================================
-# iNaturalist Bioblitz Photo Slideshow Generator - Shiny App (V4)
+# iNaturalist Bioblitz Photo Slideshow Generator - Shiny App (V5)
 # ==============================================================================
 #
 # PURPOSE:
-#   A graphical front-end for Walpole_Bioblitz_Photo_Slideshow_Script_V4.R.
-#   Point it at the slideshow script, set your project details, and generate a
-#   polished reveal.js HTML slideshow - without editing the script by hand.
+#   A graphical front-end for the iNaturalist Bioblitz Slideshow Generator
+#   (iNaturalist_Bioblitz_Slideshow_Generator_V2.R). Point it at the generator
+#   script, set your project details, and generate a polished reveal.js HTML
+#   slideshow - without editing the script by hand.
 #
 # USAGE:
 #   1. Open this file in RStudio and click "Run App".
-#   2. In the Configuration tab, browse for the slideshow script (V4) and set
-#      your project details and output folder.
+#   2. In the Configuration tab, browse for the slideshow generator script and
+#      set your project details and output folder.
 #   3. Click "Generate slideshow" in the Run & progress tab.
 #   4. When it finishes, the app switches to the Outputs tab automatically.
+#
+# WHAT CHANGED FOR V5:
+#   - Exposes the two settings the V2 generator script added:
+#       * Draw conspecific dots (show_conspecific_dots) - plots other records of
+#         the focal species inside the map window as faint grey dots.
+#       * Bundle reveal.js for offline playback (vendor_revealjs) - saves a local
+#         copy of reveal.js beside slideshow.html so the finished deck plays
+#         without internet.
+#     Both are passed through as locked parameters and round-trip through Save /
+#     Load configuration.
+#   - Header and file-picker hints now refer to the generator script by its
+#     current name rather than the old Walpole-specific filename.
 #
 # WHAT CHANGED FOR V4:
 #   - V4 of the slideshow script begins with source("bioblitz_style.R"), a
@@ -54,14 +67,14 @@ zissou_css <- HTML("
 
   :root {
     --z-blue:#3B9AB2; --z-teal:#78B7C5; --z-sand:#EBCC2A; --z-gold:#E1AF00; --z-red:#F21A00;
-    --z-navy:#12343B;         /* header / deep teal-navy */
-    --z-navy-2:#0C2429;       /* sidebar */
-    --z-navy-3:#183F48;       /* sidebar hover */
-    --z-ink:#173A42;          /* body text */
-    --z-parchment:#F3EEE3;    /* page background (warm) */
+    --z-navy:#0E3B47;         /* header / deep teal-navy */
+    --z-navy-2:#0A2E38;       /* sidebar */
+    --z-navy-3:#14515F;       /* sidebar hover */
+    --z-ink:#123138;          /* body text */
+    --z-parchment:#EFF5F6;    /* page background (cool sea-mist) */
     --z-card:#FFFFFF;
-    --z-border:#E3DAC7;
-    --z-muted:#7C7460;
+    --z-border:#D3E3E7;
+    --z-muted:#4F7078;
     --display:'Fraunces', Georgia, serif;
     --body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
@@ -114,8 +127,8 @@ zissou_css <- HTML("
   .box.box-solid.box-danger > .box-header { background: var(--z-red); }
   .box.box-danger { border-top-color: var(--z-red); }
 
-  .box.box-solid.box-success > .box-header { background: #2E8B7F; }     /* harmonising teal-green */
-  .box.box-success { border-top-color: #2E8B7F; }
+  .box.box-solid.box-success > .box-header { background: #4F7A63; }     /* harmonising teal-green */
+  .box.box-success { border-top-color: #4F7A63; }
 
   /* ---- buttons ---- */
   .btn { border-radius: 8px !important; font-weight: 600; border: none;
@@ -126,14 +139,14 @@ zissou_css <- HTML("
   .btn-success:hover { color:#3A2E00 !important; box-shadow: 0 4px 12px rgba(225,175,0,.5); }
   .btn-primary { background: var(--z-blue) !important; color:#fff !important; }
   .btn-primary:hover { background:#337F94 !important; }
-  .btn-info { background: var(--z-teal) !important; color:#0C2429 !important; }
-  .btn-info:hover { background:#67a7b6 !important; color:#0C2429 !important; }
+  .btn-info { background: var(--z-teal) !important; color:#0A2E38 !important; }
+  .btn-info:hover { background:#67a7b6 !important; color:#0A2E38 !important; }
   .btn-danger { background: var(--z-red) !important; color:#fff !important; }
   .btn-danger:hover { background:#c81600 !important; }
   .btn-warning { background: var(--z-gold) !important; color:#3A2E00 !important; }
   .btn-default { background: var(--z-card) !important; color: var(--z-ink) !important;
     border: 1px solid var(--z-border) !important; }
-  .btn-default:hover { background:#FBF8F1 !important; border-color:#CBBFA3; }
+  .btn-default:hover { background:#F3F8F9 !important; border-color:#BFD6DB; }
 
   /* ---- inputs ---- */
   .form-control { border-radius: 8px; border:1px solid var(--z-border); }
@@ -146,12 +159,12 @@ zissou_css <- HTML("
   .help-text { color: var(--z-muted); font-size: .88em; margin-top: 5px; }
   .required-label:after { content:' *'; color: var(--z-red); }
   .advanced-explain {
-    background:#FBF6E7; border-left:4px solid var(--z-gold); padding:8px 12px;
+    background:#FCF7DE; border-left:4px solid var(--z-gold); padding:8px 12px;
     margin:6px 0 10px 0; font-size:.86em; color:#5b5340; border-radius:0 6px 6px 0; }
 
   .zissou-banner {
     background: linear-gradient(120deg, var(--z-navy) 0%, var(--z-blue) 62%, #4E94A6 100%);
-    color:#F3EEE3; border-radius:12px; padding:18px 22px;
+    color:#EFF5F6; border-radius:12px; padding:18px 22px;
     box-shadow:0 3px 14px rgba(18,52,59,.18); position:relative; overflow:hidden; }
   .zissou-banner h2 { font-family: var(--display); font-weight:600; margin:0 0 4px 0;
     font-size:1.5rem; letter-spacing:.3px; }
@@ -160,10 +173,10 @@ zissou_css <- HTML("
   .zissou-swatch span { width:14px; height:100%; display:block; }
 
   /* ---- path display chips ---- */
-  .path-display { background:#FBF8F1; border:1px solid var(--z-border); border-radius:8px;
+  .path-display { background:#F3F8F9; border:1px solid var(--z-border); border-radius:8px;
     padding:7px 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:.84em; word-break:break-all; min-height:34px; color:#3f3a2d; margin-top:4px; }
-  .path-display.not-set { color:#a79f8b; font-style:italic; }
+    font-size:.84em; word-break:break-all; min-height:34px; color:#294049; margin-top:4px; }
+  .path-display.not-set { color:#86A0A6; font-style:italic; }
 
   /* ---- info boxes ---- */
   .info-box { min-height:96px !important; border-radius:12px !important;
@@ -176,9 +189,9 @@ zissou_css <- HTML("
     font-size:40px !important; color: var(--z-blue) !important; margin-top:6px !important; }
 
   /* progress stage list + verbatim log */
-  .stage-done  { color:#2E8B7F; }
-  .stage-todo  { color:#a79f8b; }
-  pre { background:#0C2429; color:#CFE3E8; border:none; border-radius:10px; }
+  .stage-done  { color:#4F7A63; }
+  .stage-todo  { color:#86A0A6; }
+  pre { background:#0A2E38; color:#CFE3E8; border:none; border-radius:10px; }
   .seed-card { margin:12px 0; padding:12px 16px; background:#EAF3F5;
     border-left:4px solid var(--z-blue); border-radius:8px; }
   hr { border-top:1px solid var(--z-border); }
@@ -254,7 +267,7 @@ ui <- dashboardPage(
                   class = "btn-default btn-block"))
             ),
             div(class = "help-text",
-                "Select the R script (e.g. Walpole_Bioblitz_Photo_Slideshow_Script_V4.R)."),
+                "Select the R script (e.g. iNaturalist_Bioblitz_Slideshow_Generator_V2.R)."),
             uiOutput("script_status_ui"),
             uiOutput("style_status_ui")   # V4: checks bioblitz_style.R sits beside the script
           )
@@ -347,7 +360,10 @@ ui <- dashboardPage(
             numericInput("map_margin_frac", "Map edge margin (fraction)",
               value = 0.20, min = 0, max = 0.4, step = 0.05),
             div(class = "help-text",
-                "Keeps HQ and the observation inside the inner part of each map. Higher = more margin, slightly more zoomed out.")
+                "Keeps HQ and the observation inside the inner part of each map. Higher = more margin, slightly more zoomed out."),
+            checkboxInput("show_conspecific_dots", "Draw other records of the same species", value = TRUE),
+            div(class = "help-text",
+                "Plots the focal species' other records inside the map window as faint grey dots, for local context.")
           )
         ),
 
@@ -374,6 +390,9 @@ ui <- dashboardPage(
             div(class = "help-text", "How long each slide shows before advancing."),
             checkboxInput("auto_slide_stoppable", "Let the viewer pause auto-advance", value = TRUE),
             checkboxInput("slideshow_loop",       "Loop back to the start at the end", value = TRUE),
+            checkboxInput("vendor_revealjs",      "Bundle reveal.js for offline playback", value = TRUE),
+            div(class = "help-text",
+                "Saves a local copy of reveal.js beside slideshow.html (fetched once, then reused) so the finished deck plays without internet."),
             numericInput("max_collage", "Max photos in the final collage",
               value = 25, min = 5, max = 100, step = 5),
             div(class = "help-text", "The closing slide is a collage of random photos.")
@@ -706,7 +725,7 @@ server <- function(input, output, session) {
           if (is.null(path)) " No script selected yet."
           else paste0(" Script not found: ", path))
     } else {
-      div(style = "color:#2E8B7F; font-weight:600; margin-top:8px;",
+      div(style = "color:#4F7A63; font-weight:600; margin-top:8px;",
           icon("check-circle"), " Script found: ", basename(path))
     }
   })
@@ -722,7 +741,7 @@ server <- function(input, output, session) {
     ok <- style_ok()
     if (is.na(ok)) return(NULL)
     if (isTRUE(ok)) {
-      div(style = "color:#2E8B7F; font-weight:600; margin-top:6px;",
+      div(style = "color:#4F7A63; font-weight:600; margin-top:6px;",
           icon("check-circle"), " bioblitz_style.R found in the script folder.")
     } else {
       div(style = "color:var(--z-red); font-weight:600; margin-top:6px;",
@@ -876,9 +895,11 @@ server <- function(input, output, session) {
       base_map_zoom = input$base_map_zoom, default_dist_m = input$default_dist_m,
       map_zoom_n = input$map_zoom_n, map_pad_m = input$map_pad_m,
       map_margin_frac = input$map_margin_frac,
+      show_conspecific_dots = input$show_conspecific_dots,
       auto_advance_ms = input$auto_advance_ms,
       auto_slide_stoppable = input$auto_slide_stoppable,
-      slideshow_loop = input$slideshow_loop, max_collage = input$max_collage,
+      slideshow_loop = input$slideshow_loop, vendor_revealjs = input$vendor_revealjs,
+      max_collage = input$max_collage,
       create_pdf = input$create_pdf, pdf_size_limit_mb = input$pdf_size_limit_mb,
       use_random_seed = input$use_random_seed, random_seed = input$random_seed,
       fresh_run = input$fresh_run, fetch_all_observations = input$fetch_all_observations,
@@ -919,9 +940,11 @@ server <- function(input, output, session) {
     if (!is.null(config$map_zoom_n))      updateNumericInput(session, "map_zoom_n",      value = config$map_zoom_n)
     if (!is.null(config$map_pad_m))       updateNumericInput(session, "map_pad_m",       value = config$map_pad_m)
     if (!is.null(config$map_margin_frac)) updateNumericInput(session, "map_margin_frac", value = config$map_margin_frac)
+    updateCheckboxInput(session, "show_conspecific_dots", value = config$show_conspecific_dots %||% TRUE)
     updateNumericInput(session, "auto_advance_ms", value = config$auto_advance_ms)
     updateCheckboxInput(session, "auto_slide_stoppable", value = config$auto_slide_stoppable)
     updateCheckboxInput(session, "slideshow_loop",       value = config$slideshow_loop)
+    updateCheckboxInput(session, "vendor_revealjs",      value = config$vendor_revealjs %||% TRUE)
     updateNumericInput(session, "max_collage",       value = config$max_collage)
     updateCheckboxInput(session, "create_pdf",       value = config$create_pdf)
     updateNumericInput(session, "pdf_size_limit_mb", value = config$pdf_size_limit_mb)
@@ -947,7 +970,8 @@ server <- function(input, output, session) {
     bool_inputs <- c("fresh_run","fetch_all_observations","cache_observations",
                      "use_incremental_fetch","force_rebuild_base_map","force_rebuild_maps",
                      "force_rebuild_slides","force_rebuild_collage","force_rebuild_icons",
-                     "skip_osm_overlays","use_random_seed")
+                     "skip_osm_overlays","show_conspecific_dots","vendor_revealjs",
+                     "use_random_seed")
     for (nm in bool_inputs)
       if (!is.null(cfg[[nm]])) updateCheckboxInput(session, nm, value = cfg[[nm]])
     if (!is.null(cfg$n_photos)) updateNumericInput(session, "n_photos", value = cfg$n_photos)
@@ -1198,6 +1222,7 @@ make_locked_param(script_env, "force_rebuild_slides",     ', fmt_bool(input$forc
 make_locked_param(script_env, "force_rebuild_collage",    ', fmt_bool(input$force_rebuild_collage), ')
 make_locked_param(script_env, "force_rebuild_icons",      ', fmt_bool(input$force_rebuild_icons), ')
 make_locked_param(script_env, "skip_osm_overlays",        ', fmt_bool(input$skip_osm_overlays), ')
+make_locked_param(script_env, "show_conspecific_dots",    ', fmt_bool(input$show_conspecific_dots), ')
 make_locked_param(script_env, "base_map_zoom",            ', input$base_map_zoom, ')
 make_locked_param(script_env, "default_dist_m",           ', input$default_dist_m, ')
 make_locked_param(script_env, "map_zoom_n",               ', input$map_zoom_n, ')
@@ -1206,6 +1231,7 @@ make_locked_param(script_env, "map_margin_frac",          ', input$map_margin_fr
 make_locked_param(script_env, "auto_advance_ms",          ', input$auto_advance_ms * 1000, ')
 make_locked_param(script_env, "auto_slide_stoppable",     ', fmt_bool(input$auto_slide_stoppable), ')
 make_locked_param(script_env, "slideshow_loop",           ', fmt_bool(input$slideshow_loop), ')
+make_locked_param(script_env, "vendor_revealjs",          ', fmt_bool(input$vendor_revealjs), ')
 make_locked_param(script_env, "max_collage",              ', input$max_collage, ')
 make_locked_param(script_env, "create_pdf",               ', fmt_bool(input$create_pdf), ')
 make_locked_param(script_env, "pdf_size_limit_mb",        ', input$pdf_size_limit_mb, ')
@@ -1373,8 +1399,8 @@ if (file.exists(pid_file)) file.remove(pid_file)
         tags$br(), tags$br(),
         "Click ", tags$b("Use last run seed"), " to reuse the previous seed, or enter one below.")
     } else if (needs_seed && has_seed) {
-      div(style = "background:#EAF3ED; color:#2E8B7F; border-radius:8px; padding:8px 18px;
-                   margin-bottom:12px; border-left:5px solid #2E8B7F;",
+      div(style = "background:#EAF3ED; color:#4F7A63; border-radius:8px; padding:8px 18px;
+                   margin-bottom:12px; border-left:5px solid #4F7A63;",
         paste0("Seed ", input$random_seed2, " is set - the same photos will be reused."))
     }
   })
@@ -1387,7 +1413,7 @@ if (file.exists(pid_file)) file.remove(pid_file)
 
   output$progress_stages <- renderUI({
     if (!rv$running && nchar(rv$log) < 50)
-      return(p("Click Generate slideshow to begin.", style = "color:#a79f8b;"))
+      return(p("Click Generate slideshow to begin.", style = "color:#86A0A6;"))
     lt <- rv$log
     stages <- list(
       list(name = "Initializing",                complete = nchar(lt) > 0),
