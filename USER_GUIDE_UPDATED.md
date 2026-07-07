@@ -135,10 +135,11 @@ Both methods use the same underlying slideshow generation engine:
 - **Truly Random**: Every run selects different photos (perfect for daily displays)
 - **Diversity Controls**: Ensures fair representation across observers and taxa
 - **Efficient Caching**: After the first run, only checks for new observations (much faster!)
-- **Flexible Map Options**: Choose from satellite, street, or topographic maps
-- **Performance Optimized**: Fast map providers for large areas (10-20x faster)
+- **Location Maps**: Each photo is paired with a satellite map, roads and waterways, and a legend that includes your bioblitz HQ. The focal record shows as a white X, with an option to add faint grey dots for other nearby records of the same species.
+- **Plays Offline**: reveal.js is bundled beside the HTML on the first run, so the finished slideshow plays without an internet connection.
+- **Automatic Dates**: the date range on the welcome slide is read from the observations (or set by hand).
 - **High Resolution Photos**: Automatically downloads full-size images, not thumbnails
-- **Fully Customizable**: Your bioblitz name, year, and extensive configuration options
+- **Fully Customizable**: Your bioblitz name (the year is appended automatically) and extensive configuration options
 - **Real-Time Monitoring** (GUI only): Watch progress with live updates
 
 ---
@@ -703,15 +704,21 @@ The configuration section has comments explaining each setting. Here are the key
 # iNaturalist project identifier (from project URL)
 project_slug <- "walpole-wilderness-bioblitz-2025"
 
-# How many photos to include in slideshow
-n_photos <- 25
+# How many photos to include in the slideshow
+# (the script may ship set low, e.g. 3, for a quick test; raise it for a full show)
+n_photos <- 50
 
-# For welcome slides and branding
-bioblitz_name <- "Walpole Wilderness"
-bioblitz_year <- 2025
+# For the welcome slide. The year is appended automatically from the data,
+# e.g. "Walpole Wilderness Bioblitz 2025".
+bioblitz_name <- "Walpole Wilderness Bioblitz"
 
-# Optional: path to your logo file (JPG or PNG)
+# Optional: logo file (JPG or PNG) in the project root folder
 bioblitz_logo <- "walpole_bioblitz_logo.jpg"
+
+# Date range on the welcome slide: read from the data, or set by hand
+bioblitz_dates_auto  <- TRUE
+bioblitz_dates_start <- NULL   # e.g. "2025-11-15", used only when bioblitz_dates_auto = FALSE
+bioblitz_dates_end   <- NULL   # e.g. "2025-11-17"
 ```
 
 **Finding your project slug:**
@@ -727,9 +734,13 @@ hq_lon <- 116.634398   # Longitude (E/W)
 hq_lat <- -34.992854   # Latitude (N/S)
 
 # Map settings
-base_map_zoom <- 14    # 13-15 typical (higher = more detail, slower)
-buffer_km <- 3.5       # Area around observations (km)
-default_dist_m <- 4000 # Radius for individual maps (meters)
+base_map_zoom   <- 14    # Satellite zoom, 13-15 typical (higher = more detail, slower)
+default_dist_m  <- 4000  # Minimum map half-width (m): the closest/most-zoomed-in level
+map_zoom_n      <- 4     # Discrete zoom levels; each map snaps to the smallest that
+                         # still frames both HQ and the observation
+map_pad_m       <- 1000  # Margin (m) kept between HQ/observation and the window edge
+map_margin_frac <- 0.20  # Fractional edge margin (0-0.4); higher = slightly more zoomed out
+show_conspecific_dots <- TRUE  # Also show other in-view records of the same species as faint grey dots
 ```
 
 **Finding your coordinates:**
@@ -744,26 +755,18 @@ default_dist_m <- 4000 # Radius for individual maps (meters)
 # Ensure fair representation
 max_obs_per_observer_pct <- 0.15  # Max 15% from any one observer
 max_obs_per_observer_abs <- 5     # Hard limit: max 5 per observer
-max_plants_pct <- 0.50             # Max 50% plants (balance taxonomy)
+max_plants_pct <- 0.40             # Max 40% plants (balance taxonomy)
 ```
 
-#### Map Provider
+#### Satellite Imagery and Overlays
 
-Choose your map style:
+The maps use Esri World Imagery (satellite) with OpenStreetMap roads and
+waterways drawn on top. To speed things up on a large or slow area, drop the
+overlays and/or lower the zoom:
 
 ```r
-# Options:
-map_provider <- "Esri.WorldImagery"    # Satellite (high quality, slower)
-map_provider <- "OpenStreetMap"        # Street map (fast)
-map_provider <- "CartoDB.Voyager"      # Balanced (fast, good detail)
-map_provider <- "Esri.WorldTopoMap"    # Topographic
-```
-
-**For large bioblitzes (10-20x faster):**
-```r
-map_provider <- "OpenStreetMap"
-skip_osm_overlays <- TRUE
-base_map_zoom <- 12
+skip_osm_overlays <- TRUE   # Skip the OSM roads/waterways overlay (faster)
+base_map_zoom     <- 12     # Lower zoom = fewer tiles = faster
 ```
 
 #### Run Modes
@@ -785,10 +788,11 @@ cache_observations <- TRUE          # Update cache
 #### Slideshow Settings
 
 ```r
-auto_advance_ms <- 7000        # 7 seconds per slide
+auto_advance_ms      <- 7000   # 7 seconds per slide
 auto_slide_stoppable <- TRUE   # Allow manual control
-slideshow_loop <- FALSE        # Don't loop (change to TRUE for displays)
-max_collage <- 25              # Photos in final collage
+slideshow_loop       <- TRUE   # Loop at the end (good for unattended displays)
+vendor_revealjs      <- TRUE   # Bundle reveal.js locally so the show plays offline
+max_collage          <- 25     # Photos in the final collage
 ```
 
 #### PDF Settings
@@ -883,36 +887,41 @@ This applies to both GUI and script methods.
 | Parameter | Default | Description | GUI Location |
 |-----------|---------|-------------|--------------|
 | `project_slug` | Required | iNaturalist project identifier | Project Settings |
-| `n_photos` | 25 | Number of photos in slideshow | Project Settings |
-| `bioblitz_name` | Required | Name for slides | Project Settings |
-| `bioblitz_year` | 2025 | Year for slides | Project Settings |
-| `bioblitz_logo` | "" | Path to logo file | Project Settings |
+| `n_photos` | 50 | Photos in the slideshow (may ship low, e.g. 3, for a quick test) | Project Settings |
+| `bioblitz_name` | Required | Welcome-slide name (year appended automatically) | Project Settings |
+| `bioblitz_logo` | "" | Logo file in the project root | Project Settings |
+| `bioblitz_dates_auto` | TRUE | Read the date range from the data | Project Settings |
+| `bioblitz_dates_start` / `_end` | NULL | Manual dates, used when `bioblitz_dates_auto = FALSE` | Project Settings |
 | `hq_lon` | Required | Headquarters longitude | Location Settings |
 | `hq_lat` | Required | Headquarters latitude | Location Settings |
-| `base_map_zoom` | 14 | Map zoom level (10-18) | Location Settings |
-| `buffer_km` | 3.5 | Buffer around observations (km) | Location Settings |
-| `default_dist_m` | 4000 | Individual map radius (m) | Location Settings |
+| `base_map_zoom` | 14 | Satellite zoom level (13-15) | Location Settings |
+| `default_dist_m` | 4000 | Minimum map half-width (m) | Location Settings |
+| `map_zoom_n` | 4 | Number of discrete zoom levels | Location Settings |
+| `map_pad_m` | 1000 | Margin (m) to the window edge | Location Settings |
+| `map_margin_frac` | 0.20 | Fractional edge margin (0-0.4) | Location Settings |
+| `show_conspecific_dots` | TRUE | Faint grey dots for same-species records in view | Location Settings |
 | `max_obs_per_observer_pct` | 0.15 | Max % from one observer | Diversity Settings |
 | `max_obs_per_observer_abs` | 5 | Absolute max per observer | Diversity Settings |
-| `max_plants_pct` | 0.50 | Max % plant photos | Diversity Settings |
-| `map_provider` | "Esri.WorldImagery" | Map style | Advanced (script only) |
+| `max_plants_pct` | 0.40 | Max % plant photos | Diversity Settings |
 | `auto_advance_ms` | 7000 | Slide duration (milliseconds) | Slideshow Settings |
 | `auto_slide_stoppable` | TRUE | Allow pause | Slideshow Settings |
-| `slideshow_loop` | FALSE | Loop at end | Slideshow Settings |
+| `slideshow_loop` | TRUE | Loop at end | Slideshow Settings |
+| `vendor_revealjs` | TRUE | Bundle reveal.js for offline playback | Slideshow Settings |
 | `max_collage` | 25 | Collage photo count | Slideshow Settings |
-| `fresh_run` | TRUE | Delete old outputs | Run Mode & Performance |
+| `fresh_run` | FALSE | Delete old outputs and start fresh | Run Mode & Performance |
 | `fetch_all_observations` | TRUE | Fetch all vs subset | Run Mode & Performance |
 | `cache_observations` | TRUE | Save observation data | Run Mode & Performance |
 | `use_incremental_fetch` | TRUE | Fetch only new obs | Run Mode & Performance |
-| `force_rebuild_base_map` | TRUE | Regenerate base map | Advanced Options |
-| `force_rebuild_maps` | FALSE | Regenerate all maps | Advanced Options |
-| `force_rebuild_slides` | FALSE | Regenerate all slides | Advanced Options |
-| `skip_osm_overlays` | FALSE | Skip roads/waterways | Advanced Options |
-| `create_pdf` | TRUE | Generate PDF | PDF Output Settings |
+| `force_rebuild_base_map` | FALSE | Rebuild the satellite base map | Advanced Options |
+| `force_rebuild_maps` | TRUE | Rebuild all per-observation maps | Advanced Options |
+| `force_rebuild_slides` | FALSE | Rebuild all slides | Advanced Options |
+| `force_rebuild_collage` | TRUE | Rebuild the closing collage | Advanced Options |
+| `skip_osm_overlays` | FALSE | Skip roads/waterways overlay | Advanced Options |
+| `create_pdf` | FALSE | Also export a PDF (needs Chrome) | PDF Output Settings |
 | `pdf_size_limit_mb` | 50 | PDF size limit (MB) | PDF Output Settings |
-| `use_random_seed` | TRUE | Use randomization | Random Seed |
-| `random_seed` | NULL | Specific seed number | Random Seed |
-| `out_dir` | (varies) | Output folder name | Project Settings |
+| `use_random_seed` | TRUE | New selection each run | Random Seed |
+| `random_seed` | NULL | Fixed seed number | Random Seed |
+| `out_dir` | derived | Output folder (from the project slug) | (script) |
 
 ---
 
@@ -1018,10 +1027,8 @@ Both methods create the same outputs in your designated output folder.
 
 **Quick fixes (Script):**
 ```r
-map_provider <- "OpenStreetMap"
 skip_osm_overlays <- TRUE
-base_map_zoom <- 12
-buffer_km <- 2.5
+base_map_zoom     <- 12
 ```
 
 These can make maps 10-20x faster!
@@ -1200,11 +1207,9 @@ Error: object 'xyz' not found
 
 ```r
 # In script:
-map_provider <- "OpenStreetMap"
 skip_osm_overlays <- TRUE
-base_map_zoom <- 12
-buffer_km <- 2
-create_pdf <- FALSE
+base_map_zoom     <- 12
+create_pdf        <- FALSE
 ```
 
 **In GUI:**
@@ -1319,18 +1324,12 @@ quarto::quarto_render("outputs/slideshow/slideshow.qmd")
 
 ---
 
-### Using Different Map Providers
+### Map Imagery
 
-**Available providers:**
-- `Esri.WorldImagery` - Satellite
-- `OpenStreetMap` - Street map
-- `CartoDB.Voyager` - Light, modern
-- `CartoDB.Positron` - Very light
-- `Esri.WorldTopoMap` - Topographic
-- `Esri.WorldStreetMap` - Street details
-
-**In script:** Change `map_provider`  
-**In GUI:** Must edit main script (advanced)
+The slideshow uses Esri World Imagery (satellite) for every map, with
+OpenStreetMap roads and waterways as overlays. There is no map-provider
+switch; to lighten or speed up the maps, use `skip_osm_overlays` and a lower
+`base_map_zoom` (see Optimizing Performance).
 
 ---
 
