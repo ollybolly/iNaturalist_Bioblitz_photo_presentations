@@ -54,7 +54,7 @@ cat("=== SCRIPT STARTING ===\n\n")
 
 # --- Project Settings ---
 project_slug <- "walpole-wilderness-bioblitz-2025"  # Your iNaturalist project slug
-n_photos     <- 50                                  # Number of photos in slideshow
+n_photos     <- 3                                  # Number of photos in slideshow
 bioblitz_logo <- "Walpole-Wilderness-bioblitz.jpg"  # Logo filename (in project root folder)
 
 # --- Bioblitz Identity ---
@@ -98,6 +98,8 @@ use_incremental_fetch <- TRUE   # TRUE = only fetch NEW observations since last 
 # See the Shiny app Advanced Options panel for detailed explanations of each.
 force_rebuild_base_map <- FALSE  #TRUE = rebuild satellite base map even if cached
 force_rebuild_maps     <- TRUE  # TRUE = rebuild all individual observation maps
+show_conspecific_dots  <- TRUE # TRUE = also plot other records of the focal species
+                                #        within the map window as faint grey dots
 force_rebuild_slides   <- FALSE  # TRUE = rebuild all slide compositions
 force_rebuild_collage  <- TRUE   # TRUE = rebuild the polaroid collage image
 skip_osm_overlays      <- FALSE  # TRUE = skip OpenStreetMap roads/waterways (faster)
@@ -119,6 +121,8 @@ map_margin_frac <- 0.20  # Fractional edge margin (0-0.4): keep HQ and the obser
 auto_advance_ms      <- 7000   # Auto-advance time in milliseconds (7000 = 7 seconds)
 auto_slide_stoppable <- TRUE   # Allow user to stop auto-advance
 slideshow_loop       <- TRUE   # Loop slideshow when it reaches the end
+vendor_revealjs      <- TRUE   # TRUE = save reveal.js locally beside the HTML so the
+                               # finished slideshow plays offline (fetched once, reused)
 max_collage          <- 25     # Maximum photos in final collage
 create_pdf           <- FALSE  # Set to FALSE to skip PDF creation (useful for large slideshows)
 pdf_size_limit_mb    <- 50     # Skip PDF if estimated size exceeds this (0 = no limit)
@@ -127,11 +131,11 @@ pdf_size_limit_mb    <- 50     # Skip PDF if estimated size exceeds this (0 = no
 # Palette, icon-cache config, and silhouette functions are shared with the
 # Data Dive via the style file (Wes Anderson palette; PhyloPic silhouettes).
 # It self-installs wesanderson/magick. Override any icon setting AFTER this
-force_rebuild_icons <- TRUE # line if needed (e.g. once after a palette change).
 source("bioblitz_style.R")
 
 # --- Output Settings ---
-out_dir        <- "outputs/walpole_wilderness_bioblitz_2025_slideshow"  # Output directory
+# Derived from project_slug so each bioblitz gets its own cache + outputs.
+out_dir        <- file.path("outputs", paste0(gsub("[^a-z0-9]+", "_", tolower(project_slug)), "_slideshow"))  # Output directory
 diagnostic_mode <- TRUE  # Print detailed progress messages
 
 # ==============================================================================
@@ -972,7 +976,7 @@ cat("Ready:", nrow(samples), "photos\n")
 
 cat("\n=== CREATING MAPS ===\n")
 
-safe_make_map <- function(lon, lat, out_path, obs_id = NULL) {
+safe_make_map <- function(lon, lat, out_path, obs_id = NULL, focal_sci = NULL) {
   tryCatch({
     if (is.na(lon) || is.na(lat)) {
       if (diagnostic_mode) cat("  Obs", obs_id, "- Missing coordinates\n")
@@ -1060,6 +1064,24 @@ safe_make_map <- function(lon, lat, out_path, obs_id = NULL) {
       x = c(hq_px, hq_px + fw,            hq_px + fw * 0.80,    hq_px + fw,            hq_px),
       y = c(hq_poletop, hq_poletop - fh * 0.15, hq_poletop - fh * 0.5, hq_poletop - fh * 0.85, hq_poletop - fh))
 
+    # --- Other records of the focal species within THIS map window (optional) ---
+    conspecific_df <- data.frame(X = numeric(0), Y = numeric(0))
+    if (isTRUE(show_conspecific_dots) && !is.null(focal_sci) &&
+        !is.na(focal_sci) && nzchar(focal_sci) && exists("obs")) {
+      others <- obs[!is.na(obs$sci_name) & obs$sci_name == focal_sci &
+                    !is.na(obs$longitude) & !is.na(obs$latitude), , drop = FALSE]
+      if (!is.null(obs_id))
+        others <- others[is.na(others$obs_id) | others$obs_id != obs_id, , drop = FALSE]
+      if (nrow(others) > 0) {
+        o_m  <- sf::st_transform(
+          sf::st_as_sf(others, coords = c("longitude", "latitude"), crs = 4326), 3857)
+        o_xy <- sf::st_coordinates(o_m)
+        keep <- o_xy[, 1] >= xmin & o_xy[, 1] <= xmax &
+                o_xy[, 2] >= ymin & o_xy[, 2] <= ymax
+        if (any(keep)) conspecific_df <- data.frame(X = o_xy[keep, 1], Y = o_xy[keep, 2])
+      }
+    }
+
     p <- ggplot() +
       tidyterra::geom_spatraster_rgb(data = rast_crop) +
       coord_sf(crs = 3857, xlim = c(xmin, xmax), ylim = c(ymin, ymax), expand = FALSE, clip = "on") +
@@ -1076,12 +1098,14 @@ safe_make_map <- function(lon, lat, out_path, obs_id = NULL) {
                    fill = "orange", colour = NA, inherit.aes = FALSE) +
       geom_polygon(data = hq_flag, aes(x = x, y = y),
                    fill = "orange", colour = NA, inherit.aes = FALSE) +
-      geom_text(aes(x = hq_px, y = hq_poletop), label = "HQ",
-                vjust = -0.5, colour = "yellow", fontface = "bold", size = 8.4, inherit.aes = FALSE) +
+      {if (nrow(conspecific_df) > 0)
+         geom_point(data = conspecific_df, aes(x = X, y = Y),
+                    shape = 21, fill = "grey80", colour = "grey20",
+                    size = 2.6, stroke = 0.25, alpha = 0.65, inherit.aes = FALSE)} +
       geom_point(aes(x = obs_coords[1], y = obs_coords[2]),
-                 colour = "white", shape = 21, size = 6.5, stroke = 2.2, alpha = 0.55, inherit.aes = FALSE) +
+                 colour = "black", shape = 4, size = 6.8, stroke = 3.2, alpha = 0.5, inherit.aes = FALSE) +
       geom_point(aes(x = obs_coords[1], y = obs_coords[2]),
-                 colour = "#FF0000", shape = 8, size = 5.2, stroke = 1.2, inherit.aes = FALSE) +
+                 colour = "white", shape = 4, size = 6.2, stroke = 2.0, inherit.aes = FALSE) +
       theme_void() +
       theme(plot.margin = margin(0, 0, 0, 0), legend.position = "none")
 
@@ -1111,7 +1135,7 @@ if (any(need_map)) {
   cat("Creating", sum(need_map), "maps (", sum(samples$map_ok & !force_rebuild_maps), "exist)...\n")
   map_results <- rep(FALSE, nrow(samples))
   for (i in which(need_map))
-    map_results[i] <- safe_make_map(samples$longitude[i], samples$latitude[i], samples$map_file[i], samples$obs_id[i])
+    map_results[i] <- safe_make_map(samples$longitude[i], samples$latitude[i], samples$map_file[i], samples$obs_id[i], samples$sci_name[i])
 
   samples$map_ok <- file.exists(samples$map_file)
   n_success  <- sum(map_results)
@@ -1142,6 +1166,19 @@ cat("\n=== COMPOSING SLIDES ===\n")
 # Draw a simple, taxon-indicative marker on the active image_draw() device.
 # Coordinates are image pixels with (0,0) at top-left and y increasing DOWN.
 # Shapes are built from base-graphics primitives so no emoji font is needed.
+draw_hut_icon <- function(cx, cy, s = 18, col = "orange") {
+  # Small house + flag drawn on the image_draw() device (y increases downward),
+  # matching the orange HQ marker used on the maps.
+  bw <- s * 0.55; wall_h <- s * 0.75
+  base <- cy + s * 0.55; top <- base - wall_h
+  graphics::polygon(c(cx-bw, cx-bw, cx+bw, cx+bw), c(base, top, top, base), col = col, border = NA)
+  rw <- s * 0.85; rh <- s * 0.5
+  graphics::polygon(c(cx-rw, cx+rw, cx), c(top, top, top - rh), col = col, border = NA)
+  px <- cx + s * 0.45; ptop <- top - rh - s * 0.45
+  graphics::segments(px, top, px, ptop, col = col, lwd = 3)
+  graphics::polygon(c(px, px + s*0.5, px), c(ptop, ptop + s*0.16, ptop + s*0.32), col = col, border = NA)
+}
+
 draw_taxon_marker <- function(taxon, cx, cy, s, col, lw = 5) {
   ell  <- function(ex, ey, rx, ry, n = 28) {
     t <- seq(0, 2 * pi, length.out = n); list(x = ex + rx * cos(t), y = ey + ry * sin(t))
@@ -1319,19 +1356,19 @@ compose_slide <- function(photo_path, map_path, date, common, sci, obs_by,
     rx_text   <- 1005          # where the right-side text starts
     marker_cx <- 960           # centre of the taxon marker
     line_x1   <- 925; line_x2 <- 995   # legend line-sample span
-    row_y     <- c(760, 830, 900)
+    row_y     <- c(760, 830, 900, 970)
 
     # Taxon label text (top row), coloured to match the taxon's icon
     if (nzchar(taxon))
       bg <- magick::image_annotate(bg, taxon, size = 58, color = marker_color,
                                    gravity = "northwest", location = sprintf("+%d+%d", rx_text, row_y[1]))
 
-    # Legend entries (only those present project-wide), Track then Watercourse
-    legend_items <- list()
+    # Legend entries: HQ (always) then Track/Watercourse (only when present)
+    legend_items <- list(list(label = "Bioblitz Headquarters", col = "orange", type = "hut"))
     if (isTRUE(has_tracks))
-      legend_items <- c(legend_items, list(list(label = "Track",       col = "#B0B0B0", lty = 1)))
+      legend_items <- c(legend_items, list(list(label = "Track",       col = "#B0B0B0", lty = 1, type = "line")))
     if (isTRUE(has_water))
-      legend_items <- c(legend_items, list(list(label = "Watercourse", col = "#4FA3FF", lty = 1)))
+      legend_items <- c(legend_items, list(list(label = "Watercourse", col = "#4FA3FF", lty = 1, type = "line")))
 
     for (li in seq_along(legend_items)) {
       bg <- magick::image_annotate(bg, legend_items[[li]]$label, size = 58, color = "white",
@@ -1363,8 +1400,13 @@ compose_slide <- function(photo_path, map_path, date, common, sci, obs_by,
       draw_taxon_marker(taxon, marker_cx, row_y[1] + 30, 21, marker_color)
     for (li in seq_along(legend_items)) {
       yy <- row_y[li + 1] + 30
-      graphics::segments(line_x1, yy, line_x2, yy,
-                         col = legend_items[[li]]$col, lwd = 8, lty = legend_items[[li]]$lty)
+      it <- legend_items[[li]]
+      if (!is.null(it$type) && it$type == "hut") {
+        draw_hut_icon((line_x1 + line_x2) / 2, yy, s = 27, col = it$col)
+      } else {
+        graphics::segments(line_x1, yy, line_x2, yy,
+                           col = it$col, lwd = 8, lty = if (!is.null(it$lty)) it$lty else 1)
+      }
     }
     grDevices::dev.off()
 
@@ -1677,16 +1719,10 @@ cat("Bioblitz title:", bioblitz_title, "\n")
 cat("Date range label:", date_range_label, "\n")
 
 # --------------------------------------------------------------------------
-# Taxon icons and slide grouping
+# Slide grouping
 # --------------------------------------------------------------------------
-taxon_icons <- c(
-  "Plantae"="🪻","Animalia"="🐾","Aves"="🦜","Insecta"="🦋","Arachnida"="🕷️","Amphibia"="🐸",
-  "Reptilia"="🦎","Mammalia"="🦘","Mollusca"="🐚","Fungi"="🍄","Actinopterygii"="🐠",
-  "Protozoa"="🔬","Chromista"="🧫","Unknown"="❓"
-)
 
 grouped     <- split(samples, samples$iconic_taxon)
-taxon_order <- names(sort(sapply(grouped, nrow), decreasing = TRUE))
 
 # --------------------------------------------------------------------------
 # Copy logo
@@ -1709,7 +1745,8 @@ if (file.exists(bioblitz_logo)) {
 # Quarto always injects empty <h2> elements and applies r-stretch JS (which
 # sets inline style="height:Xpx") to every lone image, making CSS overrides
 # unreliable. Writing HTML directly gives full control over slide layout.
-# reveal.js is loaded from CDN (requires internet, same as iNaturalist API).
+# reveal.js is vendored locally beside the HTML (see vendor_revealjs) so the
+# finished deck plays offline; it falls back to the CDN only if it cannot be fetched.
 # --------------------------------------------------------------------------
 
 html_escape <- function(x) {
@@ -1830,7 +1867,7 @@ inline_css <- '
   /* Logo: centred, above the title, larger */
   .welcome-slide .logo-centre {
     display: block;
-    width: 320px;
+    width: 800px;
     margin: 0 auto 0.5rem auto;
   }
   .welcome-slide .logo-centre img {
@@ -1853,7 +1890,30 @@ inline_css <- '
   }
 '
 
-cdn <- "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.0"
+# reveal.js: keep a local copy beside slideshow.html so the finished deck plays
+# without internet. Downloaded once into out_dir/reveal.js, then reused; falls back
+# to the CDN if the files cannot be fetched (e.g. the very first run is offline).
+reveal_cdn    <- "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.0"
+reveal_assets <- c("reset.min.css", "reveal.min.css", "theme/night.min.css", "reveal.min.js")
+cdn <- reveal_cdn
+if (isTRUE(vendor_revealjs)) {
+  reveal_dir <- file.path(out_dir, "reveal.js")
+  dir.create(file.path(reveal_dir, "theme"), recursive = TRUE, showWarnings = FALSE)
+  for (a in reveal_assets) {
+    dest <- file.path(reveal_dir, a)
+    if (!file.exists(dest) || file.size(dest) == 0)
+      tryCatch(utils::download.file(paste0(reveal_cdn, "/", a), dest, mode = "wb", quiet = TRUE),
+               error = function(e) NULL)
+  }
+  have_all <- all(file.exists(file.path(reveal_dir, reveal_assets)) &
+                  file.size(file.path(reveal_dir, reveal_assets)) > 0)
+  if (isTRUE(have_all)) {
+    cdn <- "reveal.js"   # relative to slideshow.html -> fully offline
+    cat("reveal.js vendored locally (offline-ready)\n")
+  } else {
+    cat("Warning: could not vendor reveal.js; slideshow will load it from the CDN (needs internet)\n")
+  }
+}
 
 html_content <- paste0(
 '<!DOCTYPE html>
