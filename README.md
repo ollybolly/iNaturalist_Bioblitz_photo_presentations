@@ -10,8 +10,9 @@ Turn your iNaturalist bioblitz observations into a polished, auto-playing photo 
 ## ✨ What you get
 
 - **Random, diverse selection.** Each run draws a fresh sample of observations, with controls that stop any one observer or plants from dominating.
-- **Location map per photo.** Every slide pairs a species photo with a satellite map showing where it was found, plus your bioblitz HQ, roads and waterways.
-- **Reveal.js HTML slideshow.** Interactive, auto-advancing and loopable, organised by iconic taxon groups, with a closing photo collage.
+- **Dates filled in for you.** The date range on the welcome slide is read from the observations automatically (or set it by hand).
+- **Location map per photo.** Every slide pairs a species photo with a satellite map, roads and waterways, and a legend that includes your bioblitz HQ. The featured record is marked with a white X, and (optionally) other nearby records of the same species show as faint grey dots for context.
+- **Reveal.js HTML slideshow.** Interactive, auto-advancing and loopable, organised by iconic taxon groups, with a closing photo collage. Reveal.js is bundled beside the HTML on the first run, so the finished show also plays offline.
 - **Taxon silhouettes.** PhyloPic icons are fetched once, recoloured to match the palette and cached for reuse.
 - **Fast repeat runs.** Incremental fetch pulls only new observations, and cached photos, maps and slides are reused unless you ask for a rebuild.
 - **Two ways to run.** A point-and-click Shiny app, or the R script on its own for full control.
@@ -46,6 +47,7 @@ The script talks to the iNaturalist API and then:
 └── outputs/                                          # Created automatically when you run
     └── <project>_slideshow/
         ├── slideshow.html          # The slideshow (open from inside this folder)
+        ├── reveal.js/               # Bundled reveal.js (offline playback)
         ├── collage.png             # Closing collage
         ├── slideshow.pdf           # Optional PDF
         ├── slides/                 # Composed slide images
@@ -121,12 +123,16 @@ These apply to both methods. In the app you enter percentages and seconds; in th
 |---|---|---|---|
 | Project slug | Project settings | `project_slug` | (required) |
 | Bioblitz name | Project settings | `bioblitz_name` | Walpole Wilderness Bioblitz |
+| Date range | Project settings | `bioblitz_dates_auto` | auto from data |
 | Number of photos | Project settings | `n_photos` | 50 |
 | HQ latitude / longitude | Location & maps | `hq_lat` / `hq_lon` | -34.992854 / 116.634398 |
 | Max per observer | Selection diversity | `max_obs_per_observer_pct`, `max_obs_per_observer_abs` | 15% and 5 |
 | Max plants | Selection diversity | `max_plants_pct` | 40% |
 | Auto-advance | Slideshow playback | `auto_advance_ms` | 7 s |
+| Offline playback | Slideshow playback | `vendor_revealjs` | on |
 | Map zoom / radius / padding | Location & maps | `base_map_zoom`, `default_dist_m`, `map_pad_m` | 14 / 4000 m / 1000 m |
+| Zoom steps / edge margin | Location & maps | `map_zoom_n`, `map_margin_frac` | 4 / 0.20 |
+| Conspecific dots | Location & maps | `show_conspecific_dots` | on |
 | Random seed | Reproducibility | `use_random_seed`, `random_seed` | random each run |
 
 See [USER_GUIDE.md](USER_GUIDE.md) for the full reference, including the rebuild switches and presets.
@@ -138,6 +144,7 @@ See [USER_GUIDE.md](USER_GUIDE.md) for the full reference, including the rebuild
 The slideshow is a reveal.js page that **references its images by relative path** (the slide pictures in `slides/`, the `collage.png` and the logo). It is not a single self-contained file. So:
 
 - **Open `slideshow.html` from inside its output folder.** Moving the HTML on its own will break the images.
+- **No internet needed to play it.** Reveal.js is bundled into the folder (`reveal.js/`) on the first run, so once built the slideshow runs offline.
 - **To share it, keep the folder together.** Zip the whole `<project>_slideshow` folder, or at least ship `slideshow.html` alongside its `slides/` folder, `collage.png` and the logo.
 - The optional `slideshow.pdf` is a single portable file, handy for emailing.
 
